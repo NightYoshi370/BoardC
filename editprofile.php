@@ -36,8 +36,8 @@
 		// (which doesn't even matter, as the update query would just fail, but w/e)
 		// For the second check though it does matter in a way
 		$valid = $sql->fetchq("SELECT id, powerlevel FROM users WHERE id = $id");
-		if (!$valid['id']) 									errorpage("This user doesn't exist!");
-		if ($valid['powerlevel'] > $loguser['powerlevel'])	errorpage("No.");
+		if (!$valid['id']) 																errorpage("This user doesn't exist!");
+		if ($valid['powerlevel'] != 6 && $valid['powerlevel'] > $loguser['powerlevel'])	errorpage("No.");;
 		
 		checktoken();
 		
@@ -71,7 +71,7 @@
 			UPDATE users SET
 			head=?, sign=?, sex=?, realname=?, location=?, birthday=?, bio=?, email=?,
 			publicemail=?, youtube=?, twitter=?, facebook=?, dateformat=?, timeformat=?,
-			tzoff=?, showhead=?, signsep=?, theme=?, rankset=?
+			tzoff=?, showhead=?, signsep=?, theme=?, rankset=?, startingday=?
 		";
 		
 		
@@ -89,29 +89,40 @@
 		
 		if (!isset($theme_list[$theme])) $theme = 1; // Jul Night
 		unset($theme_list);
-		
 
+		// Check if the ints are in valid range
+		$sex 			= filter_int($_POST['sex']);
+		if ($sex < 0 || $sex > 2) $sex = 2;
+		$publicemail 	= filter_int($_POST['publicemail']);
+		if ($publicemail < 0 || $publicemail > 2) $publicemail = 2;
+		$showhead		= filter_int($_POST['showhead']);
+		if ($showhead < 0 || $showhead > 2) $showhead = 2;
+		$rankset		= filter_int($_POST['rankset']);
+		$validrank 		= $sql->resultq("SELECT 1 FROM ranksets WHERE id = $rankset");
+		if (!$validrank) $rankset = 1; // TODO: What if the rankset with ID 1 gets removed? Well, too bad for you!
+		
 		// H E L P
 		$newdata = array(
 			prepare_string	($_POST['head']),
 			prepare_string	($_POST['sign']),
-			filter_int		($_POST['sex']),
+							 $sex,
 			prepare_string	($_POST['realname']),
 			prepare_string	($_POST['location']),
 							 $birthday,
 			prepare_string	($_POST['bio']),
 			prepare_string	($_POST['email']),
-			filter_int		($_POST['publicemail']),
+							 $publicemail,
 			prepare_string	($_POST['youtube']),
 			prepare_string	($_POST['twitter']),
 			prepare_string	($_POST['facebook']),
 			prepare_string	($_POST['dateformat']),
 			prepare_string	($_POST['timeformat']),
 			filter_int		($_POST['tzoff']),
-			filter_int		($_POST['showhead']),
+							 $showhead,
 			filter_int		($_POST['signsep']),
 							 $theme,
-			filter_int		($_POST['rankset'])
+							 $rankset,
+			filter_int		($_POST['startingday']),
 		);
 		
 		
@@ -134,14 +145,13 @@
 		
 		// Erase minipic
 		if (filter_int($_POST['iconrm'])){
-			$newdata[] = NULL;
-			$query .= ",icon=?";
+			if (is_file("userpic/$id/m"))
+				unlink("userpic/$id/m");
 		}
 		
-		// Upload minipic (as a base64 encoded image)
-		else if (filter_int($_FILES['newicon']['size'])){
-			$newdata[] = imageupload($_FILES['newicon'], $config['max-icon-size-bytes'], $config['max-icon-size-x'], $config['max-icon-size-y']);
-			$query .= ",icon=?";
+		// Upload minipic
+		else if (filter_int($_FILES['newicon']['size']) && $config['enable-image-uploads']){
+			imageupload($_FILES['newicon'], $config['max-icon-size-bytes'], $config['max-icon-size-x'], $config['max-icon-size-y'], "userpic/$id/m");
 		}
 		
 		if ($isadmin){
@@ -151,7 +161,7 @@
 				if (!filter_string($_POST['name'])) errorpage("You forgot the name, doofus!");
 				
 				// Also flat out warn for this
-				if (preg_replace('/[^\da-z ]/i', '', $_POST['name']) != $_POST['name']){
+				if (preg_replace('/[^\da-z _\/-]/i', '', $_POST['name']) != $_POST['name']){
 					errorpage("
 						The username you entered contains illegal characters.<br>
 						Only alphanumeric characters and spaces are allowed.
@@ -162,17 +172,30 @@
 				$exists = $sql->resultq("SELECT 1 FROM users WHERE name = '{$_POST['name']}' AND id != $id");
 				if ($exists) errorpage("This username already exists!");
 				
-				$newdata[] = $_POST['name'];
-				$newdata[] = filter_int($_POST['powerlevel']);
+				if ($_POST['powerlevel'] != '-1' || !filter_int($_POST['ban_hours'])){
+					$ban_expire = 0;
+				} else {
+					$ban_expire = (int) $_POST['ban_hours'] * 3600 + ctime();
+				}
+				
+				
+				$powl = filter_int($_POST['powerlevel']);
+				if ($powl <= 5){
+					// No nonsense
+					$query .= ",powerlevel=?";
+					$newdata[] = $powl;
+				}
+				
 				//$newdata[] = (filter_int($_POST['banmonth']) && filter_int($_POST['banday']) && filter_int($_POST['banyear'])) ? mktime(0,0,0,filter_int($_POST['banmonth']),filter_int($_POST['banday']),filter_int($_POST['banyear'])) : 0;
-				$newdata[] = ($_POST['powerlevel'] == "-1") ? filter_int($_POST['ban_hours']) * 3600 + ctime() : 0;
+				$newdata[] = $_POST['name'];
+				$newdata[] = $ban_expire;
 				$newdata[] = filter_int($_POST['profile_locked']);
 				$newdata[] = filter_int($_POST['editing_locked']);
 				$newdata[] = filter_int($_POST['title_status']);
 				$newdata[] = filter_int($_POST['posts']);
 				$newdata[] = filter_int($_POST['threads']);
 				
-				$query .= ",name=?,powerlevel=?,ban_expire=?,profile_locked=?,editing_locked=?,title_status=?,posts=?,threads=?";
+				$query .= ",name=?,ban_expire=?,profile_locked=?,editing_locked=?,title_status=?,posts=?,threads=?";
 				
 				// Registration date / time hilarity
 				$month 	= filter_int($_POST['sincemonth']);
@@ -198,9 +221,12 @@
 		}
 		
 		if ($isprivileged){
+			// I trust you to not abuse these options
 			$newdata[] = prepare_string($_POST['displayname']);
 			$newdata[] = prepare_string($_POST['namecolor']);
-			$query .= ",displayname=?,namecolor=?";
+			$newdata[] = filter_int($_POST['rainbow']);
+			
+			$query .= ",displayname=?,namecolor=?,rainbow=?";
 		}
 		
 		// Change password
@@ -219,8 +245,8 @@
 	
 	$user = $sql->fetchq("SELECT *, (gcoins-gspent) gcoins FROM users WHERE id = $id");
 	
-	if (!$user) 									errorpage("This user doesn't exist!");
-	if ($user['powerlevel']>$loguser['powerlevel'])	errorpage("No.");
+	if (!$user) 																	errorpage("This user doesn't exist!");
+	if ($user['powerlevel'] != 6 && $user['powerlevel'] > $loguser['powerlevel'])	errorpage("No.");
 	
 	pageheader($pagetitle);
 	
@@ -270,7 +296,7 @@
 		table_format("Administrative bells and whistles", array(
 			"Power Level" 				=> [4, "powerlevel", ""], // Custom listbox with negative values.
 			//"Banned until"] 			=> [4, "ban_expire", ""],
-			"Ban for"					=> [4, "ban_hours", ""],
+			"Ban duration"				=> [4, "ban_hours", ""],
 			"Number of posts"			=> [0, "posts", ""],
 			"Number of threads"			=> [0, "threads", ""],
 			"Registration time"			=> [4, "since", ""],
@@ -288,15 +314,20 @@
 	}
 	if ($isprivileged) {
 		table_format("Appareance", array(
-			"Name color" => [0, "namecolor", "Your username will be shown using this color (leave this blank to return to the default color). This is an hexadecimal number.<br>You can use the <a href='hex.php' target='_blank'>Color Chart</a> to select a color to enter here."],
+			"Name color" 	=> [0, "namecolor", "Your username will be shown using this color (leave this blank to return to the default color). This is an hexadecimal number.<br>You can use the <a href='hex.php' target='_blank'>Color Chart</a> to select a color to enter here."],
+			"Rainbow color" => [2, "rainbow", "Your username will always change to a random color. Enabling this overrides the previous option.", "No|Yes"],
 		));
 	}
 	table_format("Appareance", array(
 		"User rank"		=> [3, "rankset", "You can hide your rank, or choose from different sets.", findranks(true)],
 		"Post header" 	=> [1, "head", "This will get added before the start of each post you make. This can be used to give a default font color and face to your posts (by putting a &lt;font&gt; tag). This should preferably be kept small, and not contain too much text or images."],
 		"Signature" 	=> [1, "sign", "This will get added at the end of each post you make, below an horizontal line. This should preferably be kept to a small enough size."],
-		"Icon"			=> [4, "icon", "This will appear next to your username. Select a PNG image to upload."],
 	));
+	if ($config['enable-image-uploads']){
+		table_format("Appareance", array(
+			"Icon"			=> [4, "icon", "This will appear next to your username. Select a PNG image to upload."],
+		));
+	}
 	
 	
 	
@@ -332,6 +363,7 @@
 		"Signatures and post headers"	=> [2, "showhead", "You can disable them here, which can make thread pages smaller and load faster.", "Disabled|Enabled"],
 		"Signature separator"			=> [3, "signsep", "You can choose from a few signature separators here.", "None|Dashes|Line|Full horizontal line"],
 		"Theme"	 						=> [4, "theme", "You can select from a few themes here."],
+		"Starting day"	 				=> [2, "startingday", "You can select in which day a calendar should start.", "Monday|Sunday"],	
 	));
 	if ($isadmin){
 		table_format("Options", array(
@@ -368,6 +400,7 @@
 							<option value=3 " .  filter_string($powl[3])  . ">{$power_txt[3]   }</option>
 							<option value=4 " .  filter_string($powl[4])  . ">{$power_txt[4]   }</option>
 			".($sysadmin ? "<option value=5 " .  filter_string($powl[5])  . ">{$power_txt[5]   }</option>" : "")."
+			".($user['powerlevel'] == 6 ? "<option value=6 " .  filter_string($powl[6])  . ">{$power_txt[6]   }</option>" : "")."
 		</select>
 		";
 		
@@ -395,14 +428,38 @@
 	*/
 	
 	// Hours left before the user is unbanned
-	$ban_val 	= ($user['powerlevel'] == "-1") ? floor(($user['ban_expire']-ctime())/3600) : 0;
-	$ban_hours 	= "<input name='ban_hours' type='text' style='width: 50px' value='$ban_val'> hours";
+	$ban_val 	= ($user['powerlevel'] == "-1" && $user['ban_expire']) ? ceil(($user['ban_expire']-ctime())/3600) : 0;
+	//$ban_hours 	= "<input name='ban_hours' type='text' style='width: 50px' value='$ban_val'> hours";
 	
+	
+	$ban_select = array(
+		$ban_val => choosetime($ban_val*3600),
+		0		 => "*Permanent",
+		1		 => "1 hour",
+		3		 => "3 hours",
+		6		 => "6 hours",
+		24		 => "1 day",
+		72		 => "3 days",
+		168		 => "1 week",
+		336		 => "2 weeks",
+		774		 => "1 month",
+		1488	 => "2 months"
+	);
+	ksort($ban_select);
+	
+	$sel_b[$ban_val] = "selected";
+	
+	$ban_hours = "<select name='ban_hours'>";
+	foreach($ban_select as $i => $x){
+		$ban_hours .= "<option value=$i ".filter_string($sel_b[$i]).">$x</option>";
+	}
+	$ban_hours .= "</select> (has effect only for 'Banned' users)";
+
 	// The system that was used previously forced all hidden themes to be the last in the database
 	// This meant that all forum theme settings would break when normal themes are added (as the hidden themes would be shifted)
 	// Stop this nonsense RIGHT NOW
 	$theme = dothemelist('theme', false, $user['theme']);
-
+	
 	// This part takes care of formatting the arrays into proper HTML.
 	// Do not touch this code, or else the entire table system will (probably) break!
 	$t = "";

@@ -2,7 +2,6 @@
 
 	require "lib/function.php";
 	
-
 	$pid = filter_int($_GET['pid']);
 	
 	/*
@@ -51,7 +50,7 @@
 	update_hits($thread['forum'], $lookup);
 	
 
-	if (!$isproxy) $sql->query("UPDATE threads SET views = views + 1 WHERE id = $lookup");
+	$sql->query("UPDATE threads SET views = views + 1 WHERE id = $lookup");
 	
 	$mergewhere			= "";
 	$showmergecheckbox 	= false;
@@ -61,8 +60,10 @@
 	/*
 		Vote to a poll
 	*/
-	if (filter_int($_GET['vote'])){
 
+	if (filter_int($_GET['vote'])){
+		checktoken(true);
+		
 		if ($thread['ispoll'] && $loguser['id']){
 			$polldata   = getpollinfo($lookup);
 			
@@ -97,7 +98,7 @@
 		}
 		
 		$votes = $sql->query("
-			SELECT p.vote, $userfields, u.icon
+			SELECT p.vote, $userfields
 			FROM poll_votes p
 			LEFT JOIN users u ON p.user = u.id
 			WHERE p.thread = $lookup
@@ -342,6 +343,43 @@
 			($canreply  ? "<a href='new.php?act=newreply&id=$lookup'>{$IMG['newreply']}</a>" : "");
 	}
 	
+	
+	/*
+		Add / Remove from favourites
+	*/
+	$navlinks = "";
+	
+	if ($loguser['id']) {
+		$isfav = $sql->resultq("SELECT 1 FROM favorites WHERE user = {$loguser['id']} AND thread = $lookup");
+		if ($isfav) $navlinks .= "<a href='forum.php?act=rem&thread=$lookup&auth=$token'>Remove from favorites</a>";
+		else		$navlinks .= "<a href='forum.php?act=add&thread=$lookup&auth=$token'>Add to favorites</a>";
+	}
+	/*
+		Previous / Next thread
+	*/
+	$tnext = $sql->resultq("
+		SELECT id
+		FROM threads
+		WHERE lastposttime > {$thread['lastposttime']} AND forum = {$thread['forum']}
+		ORDER BY lastposttime ASC
+	");
+
+	$tprev = $sql->resultq("
+		SELECT id
+		FROM threads
+		WHERE lastposttime < {$thread['lastposttime']} AND forum = {$thread['forum']}
+		ORDER BY lastposttime DESC
+	");
+	
+	if ($loguser['id'] && ($tnext || $tprev)) $navlinks .= ' | ';
+	if ($tnext){
+		$navlinks .= "<a href='thread.php?id=$tnext'>Next newer thread</a>";
+		if ($tprev) $navlinks .= ' | ';
+	}
+	if ($tprev)	$navlinks .= "<a href='thread.php?id=$tprev'>Next older thread</a>";
+	
+	unset($tnext, $tprev, $isfav);
+	
 	?>
 	<table class='main w fonts'>
 		<tr>
@@ -368,6 +406,7 @@
 			</td>
 		</tr>
 	</table>
+	<div class='fonts r'><?php echo $navlinks ?></div>
 	<?php
 
 	
@@ -386,12 +425,13 @@
 			<tr>
 				<td class='dark'>
 					Moderating options: ".
-					"<$w href='editthread.php?id=$lookup&act=editthread'>Edit thread</$w> | ".
 					"<$w href='editthread.php?id=$lookup&tstick&auth=$token'>".($thread['sticky'] ? "Uns"  : "S")."tick</$w> | ".
 					"<$w href='editthread.php?id=$lookup&tclose&auth=$token'>".($thread['closed'] ? "Open" : "Close")."</$w> | ".
 					"<$w href='editthread.php?id=$lookup&tnoob&auth=$token'>". ($thread['noob']   ? "Un"   : "N")."00b</$w> | ".
 					($forum['id'] == $config['trash-id'] ? "" : "<$w href='editthread.php?id=$lookup&ttrash&auth=$token'>Trash</$w> | ").
-					"<a href='thread.php?id=$lookup&tmerge'>Merge</a>
+					"<a href='thread.php?id=$lookup&tmerge'>Merge</a>".
+					(defined('E_BADTHREAD') ? " - <a href='editthread.php?id=$lookup&tkill&auth=$token'>Remove bad posts</a>" : "").
+					" -- <$w href='editthread.php?id=$lookup&act=editthread'>Edit thread</$w>
 				</td>
 			</tr>
 		</table>$mergewhere
@@ -414,7 +454,7 @@
 	$noob_check = $thread['noob'] ? "1 " : "p."; // A thread marked as noob has all of its posts noobed
 	
 	$posts = $sql->query("
-		SELECT 	p.id, p.text, p.time, p.rev, p.user, p.deleted, p.thread, p.nohtml,
+		SELECT 	p.id, p.text, p.time, COUNT(o.id) rev, p.user, p.deleted, p.thread, p.nohtml,
 				p.nosmilies, p.nolayout, p.avatar, o.time rtime, p.lastedited,
 				{$noob_check}noob, $new_check new,
 				u.lastip ip, u.title, $userfields temp, u.posts, u.since,
@@ -422,10 +462,11 @@
 		FROM posts AS p
 		
 		LEFT JOIN users        u ON p.user   = u.id
-		LEFT JOIN posts_old    o ON o.time   = (SELECT MIN(o.time) FROM posts_old o WHERE o.pid = p.id)
+		LEFT JOIN posts_old    o ON p.id     = o.pid
 		LEFT JOIN threads_read n ON p.thread = n.id
 		
 		WHERE p.thread = $lookup
+		GROUP BY p.id
 		ORDER BY p.id ASC
 		
 		LIMIT ".(filter_int($_GET['page'])*$loguser['ppp']).", {$loguser['ppp']}
@@ -448,6 +489,7 @@
 			$polldata = getpollinfo($lookup);
 			print poll_print($polldata['question'], $polldata['briefing'], $polldata['multivote'], $polldata['closed']);
 		}
+		
 		/*
 			Cycle though the posts in this page
 		*/
@@ -504,6 +546,7 @@
 	
 
 	?>
+	<div class='fonts r'><?php echo $navlinks ?></div>
 	<table class='w'>
 		<tr>
 			<td>

@@ -1,7 +1,7 @@
 <?php
 	
 	function threadpost($post, $mini = false, $merge = false, $nocontrols = false, $extra = "", $pmmode = false, $annmode = false){
-		global $sql, $loguser, $config, $hacks, $sep, $ranks, $layouts, $IMG, $token, $bonusexp;
+		global $sql, $loguser, $config, $hacks, $sep, $ranks, $layouts, $IMG, $token, $bonusexp, $poststoday, $syndrome_txt;
 		global $isbanned, $ismod, $isadmin, $sysadmin;
 		
 		// Reverse post color scheme
@@ -10,8 +10,7 @@
 		
 		$controls 	= "";
 		$uid 		= $post['user'];
-		if (!$mini)
-			$postcount  = $post['posts'];
+		$postcount  = $post['posts'];
 		
 		if ($post['deleted']){
 			/*
@@ -35,34 +34,62 @@
 			if ($post['nohtml'])	 $post['text'] = htmlspecialchars($post['text']);
 			if (!$post['nosmilies']) $post['text'] = dosmilies($post['text']);
 			
-			$post['text'] = output_filters($post['text'], false, $uid);
+			// RPG Elements & Syndromes
+			$days = $rpgdays = ((ctime() - $post['since']) / 86400);
+			if ($days < 1) $rpgdays = 1;
+			// RPG Classes can give out an exp bonus
+			if (!isset($bonusexp)) {
+				$bonusexp    = $sql->fetchq("SELECT id, bonus_exp FROM rpg_classes", true, PDO::FETCH_KEY_PAIR);
+				$bonusexp[0] = 0;
+			}
 			
-			if ($post['nolayout'] || !$loguser['showhead']) {
+			if (!$mini) {
+				
+				$exp 		= calcexp($post['posts'], $rpgdays, $bonusexp[$post['class']]);
+				$level 		= calclvl($exp);
+				$expleft 	= calcexpleft($exp);
+				$levelbar	= drawlevelbar($level, $expleft);
+				
+				
+				if (!isset($poststoday)) {
+					$poststoday = $sql->fetchq("
+						SELECT user, COUNT(id)
+						FROM posts
+						WHERE time > ".ctime()." - 86400
+					", true, PDO::FETCH_KEY_PAIR);
+				}
+				
+				$check = filter_int($poststoday[$uid]);
+				// syndrome_txt[<posts required>] = array(<color>, <name>);
+				$syndrome = "";
+				foreach ($syndrome_txt as $required => $x){
+					if ($check >= $required && $x[1])
+						$syndrome = "<i><font color='{$x[0]}'>Affected by {$x[1]}</font></i><br>";
+				}	
+				
+			}
+			
+			
+			if ($mini){
+				// Don't process tags
+				$post['text'] = output_filters($post['text'], false);
+			} else {
+				$post['text'] = output_filters($post['text'], false, $uid, $post['posts'], $days, $bonusexp[$post['class']]);
+			}
+			
+			if ($mini || $post['nolayout'] || !$loguser['showhead']) {
 				$post['head'] = $post['sign'] = "";
 			} else{
 				$post['head'] = $layouts[$uid]['head'];
 				$post['sign'] = $sep.$layouts[$uid]['sign'];
 			}
 			
+			
 			if (isset($post['avatar']) && is_file("userpic/$uid/".$post['avatar']))
 				 $avatar = "<img src='userpic/$uid/{$post['avatar']}'>";
 			else $avatar = "";
 			
-			// RPG Elements
-			if (!$mini) {
-				
-				// RPG Classes can give out an exp bonus
-				if (!isset($bonusexp)) {
-					$bonusexp    = $sql->fetchq("SELECT id, bonus_exp FROM rpg_classes", true, PDO::FETCH_KEY_PAIR);
-					$bonusexp[0] = 0;
-				}
-				
-				$days 		= ((ctime() - $post['since']) / 86400);
-				$exp 		= calcexp($postcount, $days, $bonusexp[$post['class']]);
-				$level 		= calclvl($exp);
-				$expleft 	= calcexpleft($exp);
-				$levelbar	= drawlevelbar($level, $expleft);
-			}
+			
 			/*
 				Specific mode actions. Also use it to store the $script name for later
 			*/
@@ -81,7 +108,7 @@
 				$script 	= "thread";
 				
 				if (!$mini){
-					$postcount 	= $post['postcur']."/$postcount";
+					$postcount 	= $post['postcur']."/{$post['posts']}";
 				}
 				$controls  .= "<a href='thread.php?pid={$post['id']}#{$post['id']}'>Link</a> | <a href='new.php?act=newreply&id={$post['thread']}&quote={$post['id']}'>Quote</a>";
 			
@@ -118,8 +145,12 @@
 		*/
 		if (filter_int($post['rev'])){
 			
-			if (!isset($post['crev'])) $post['crev'] = $post['rev']; // imply max revision if it isn't set
-			
+			if (!isset($post['crev'])){
+				$post['crev'] = $post['rev']; // imply max revision if it isn't set
+				$lastedit = "Last edited"; // To have less confused people about the last edited date changing
+			} else {
+				$lastedit = "This revision";
+			}
 			$annoucement_fid = $annmode ? "&id=".filter_int($_GET['id']) : "";
 
 			/*
@@ -136,7 +167,7 @@
 			}
 			else $revjump = "";
 			
-			$datetxt = "Posted on ".printdate($post['rtime'])."$extra Revision ".($post['crev']+1)." (Last edited by ".makeuserlink($post['lastedited']).": ".printdate($post['time']).") $revjump";
+			$datetxt = "Posted on ".printdate($post['rtime'])."$extra Revision ".($post['crev']+1)." ($lastedit by ".makeuserlink($post['lastedited']).": ".printdate($post['time']).") $revjump";
 		}
 		else $datetxt = "Posted on ".printdate($post['time']).$extra;
 		
@@ -211,9 +242,11 @@
 				</table>
 				";
 			}
-			
+
+	  
 			if (!$post['deleted']) {
 				$sidebar = "
+					$syndrome
 					".($post['rankset'] ? $ranks[$post['user']] : "")."<br>
 					".($post['title'] ? $post['title']."<br>" : "")."
 					Level: $level<br>
@@ -236,10 +269,10 @@
 			return "
 				<table id='{$post['id']}' class='main content_$uid'>
 					<tr>
-						<td class='topbar1_$uid $theme' style='min-width: 200px; border-bottom: none'>
+						<td class='topbar{$uid}_1 $theme' style='min-width: 200px; border-bottom: none'>
 							$inputmerge$noobdiv".makeuserlink($uid, $post)."</span>
 						</td>
-						<td class='topbar2_$uid $theme w fonts' style='text-align: right'>
+						<td class='topbar{$uid}_2 $theme w fonts' style='text-align: right;'>
 						
 							<table class='fonts nobr' style='margin: 0px; border-spacing: 0px;'>
 								<tr>
@@ -259,10 +292,10 @@
 					</tr>
 					
 					<tr>
-						<td class='sidebar_$uid $theme fonts' valign='top'>
+						<td class='sidebar$uid $theme fonts' valign='top'>
 							$sidebar
 						</td>
-						<td class='mainbar_$uid $theme' valign='top' $height colspan='2'>
+						<td class='mainbar$uid $theme' valign='top' $height colspan='2'>
 							".$post['head'].$post['text'].$post['sign']."
 						</td>
 					</tr>
@@ -312,17 +345,18 @@
 		$new_check = $loguser['id'] ? "(p.time > n.user{$loguser['id']})" : "0";
 		
 		$posts = $sql->query("
-			SELECT 	p.id, p.text, p.time, p.rev, p.user, p.deleted, p.thread, u.lastip ip,
-					1 nolayout, p.nohtml, p.nosmilies, p.lastedited, p.noob,
+			SELECT 	p.id, p.text, p.time, COUNT(o.id) rev, p.user, p.deleted, p.thread, u.lastip ip,
+					1 nolayout, p.nohtml, p.nosmilies, p.lastedited, p.noob, u.posts, u.since, u.class,
 					o.time rtime, NULL title, $userfields welpwelp, $new_check new
 			
 			FROM posts p
 			
 			LEFT JOIN users        u ON p.user   = u.id
-			LEFT JOIN posts_old    o ON o.time   = (SELECT MIN(o.time) FROM posts_old o WHERE o.pid = p.id)
+			LEFT JOIN posts_old    o ON p.id     = o.pid
 			LEFT JOIN threads_read n ON p.thread = n.id
 			
 			WHERE p.thread = $thread_id
+			GROUP BY p.id
 			ORDER BY p.id DESC
 			
 			LIMIT {$loguser['ppp']}
@@ -388,14 +422,6 @@
 				$pid = $sql->resultq("SELECT id FROM posts WHERE thread = $lookup");
 
 			if (!$pid) $pid = filter_int($data['pid']);
-			
-			// Not needed anymore
-			//if (filter_int($data['ispoll'])){
-			//	$poll = split_null($data['title']);
-			//	$data['title'] = $poll[0];
-			//}
-			
-			
 			
 			// Rebuild $forum and $thread since everything expects it this way
 			
@@ -543,7 +569,7 @@
 	
 	function poll_print($question, $briefing, $multivote, $closed){
 		
-		global $loguser, $sql, $lookup, $thread, $isadmin;
+		global $loguser, $sql, $lookup, $thread, $isadmin, $token;
 		
 		
 		$votes = $sql->query("SELECT vote, user FROM poll_votes WHERE thread = $lookup");
@@ -571,7 +597,7 @@
 			
 			 // You can't vote if you're not logged in or if the poll's closed
 			if (!$loguser['id'] || $closed) $name = $set['name'];
-			else $name = "<a href='thread.php?id={$thread['id']}&page=".filter_int($_GET['page'])."&vote=$id'>{$set['name']}</a>";
+			else $name = "<a href='thread.php?id={$thread['id']}&page=".filter_int($_GET['page'])."&vote=$id&auth=$token'>{$set['name']}</a>";
 			
 			// Have we voted on this option?
 			$marker = isset($voted[$id]) ? "*" : "&nbsp;";
@@ -633,16 +659,16 @@
 	*/
 	function createpost($message, $thread, &$nohtml, &$nosmilies, &$nolayout, &$avatar){
 		
-		global $sql, $loguser;
+		global $sql, $loguser, $miscdata;
 		
+		$time  = ctime();
 		$addreply = $sql->prepare("
-			INSERT INTO posts (text, time, thread, user, rev, deleted, nohtml, nosmilies, nolayout, avatar) VALUES
+			INSERT INTO posts (text, time, thread, user, deleted, nohtml, nosmilies, nolayout, avatar) VALUES
 			(
 				?,
-				".ctime().",
+				$time,
 				".((int) $thread).",
 				{$loguser['id']},
-				0,
 				0,
 				".((int) $nohtml).",
 				".((int) $nosmilies).",
@@ -651,7 +677,21 @@
 			)
 		");
 			
-		return $sql->execute($addreply, [prepare_string($message)]);
+		$res = $sql->execute($addreply, [prepare_string($message)]);
+		
+		// Update post records
+		
+		$pday  = $sql->resultq("SELECT COUNT(id) FROM posts WHERE time > ".($time - 3600));
+		$phour = $sql->resultq("SELECT COUNT(id) FROM posts WHERE time > ".($time - 86400));
+		
+		if ($pday > $miscdata['maxpostsd']){
+			$GLOBALS['c'][] = $sql->query("UPDATE records SET maxpostsd = $pday, maxpostsdtime = $time");
+		}
+		if ($phour > $miscdata['maxpostsh']){
+			$GLOBALS['c'][] = $sql->query("UPDATE records SET maxpostsh = $phour, maxpostshtime = $time");
+		}
+		
+		return $res;
 	}
 	
 	function createthread($name, &$title, $forum, &$icon, $ispoll = 0){

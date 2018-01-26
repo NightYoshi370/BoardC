@@ -27,10 +27,15 @@
 			);	
 		}
 		// Deletions. ALL OF THEM THIS TIME
-		$c[] = $sql->query("DELETE FROM users        WHERE id   = $id");
-		$c[] = $sql->query("DELETE FROM user_avatars WHERE user = $id");
-		$c[] = $sql->query("DELETE FROM users_rpg    WHERE id   = $id");
-		$c[] = $sql->query("DELETE FROM poll_votes   WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM users        	WHERE id   = $id");
+		$c[] = $sql->query("DELETE FROM user_avatars 	WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM users_rpg    	WHERE id   = $id");
+		$c[] = $sql->query("DELETE FROM poll_votes   	WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM news  			WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM news_comments   WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM user_comments   WHERE user = $id");
+		$c[] = $sql->query("DELETE FROM events   WHERE user = $id");
+		
 		$c[] = $sql->query("DELETE FROM radar  	  WHERE user = $id OR sel = $id");
 		$c[] = $sql->query("DELETE FROM ratings      WHERE userfrom = $id OR userto = $id");
 
@@ -165,6 +170,7 @@
 	}
 	else{
 		$lazy 			= htmlspecialchars(input_filters($sql->resultq("SELECT page FROM hits WHERE user = {$user['id']}")));
+		if (!$lazy) $lazy = "(unknown page)";
 		$lastview_txt 	= "$lazy, ".choosetime(ctime()-$user['lastview'])." ago";
 	}
 	

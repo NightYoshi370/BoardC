@@ -25,8 +25,7 @@
 		
 		ipban($reason, $ircreason, $_POST['newip'], $expire, true);
 		setmessage("Added IP ban for {$_POST['newip']}.");
-		header("Location: ?");
-		x_die();		
+		redirect("?");	
 	}
 	else if (isset($_POST['dodel']) && isset($_POST['delban'])){
 		checktoken();
@@ -45,8 +44,7 @@
 		} else {
 			setmessage("No IP bans selected.");
 		}
-		header("Location: ?");
-		x_die();
+		redirect("?");	
 	}
 	
 	
@@ -103,7 +101,7 @@
 					<a href='?reason=Recovery'>Password recovery</a> - 
 					<a href='?reason=Regkey'>Registration Key</a> - 
 					<a href='?reason=<?php echo urlencode("online.php ban") ?>'>Online.php bans</a> - 
-					<a href='?reason=<?php echo urlencode("Abusive/Malicious Behaviour") ?>'>Malicious behaviour/Minilog ban</a>
+					<a href='?reason=<?php echo urlencode("Abusive/Malicious Behaviour") ?>'>Malicious behaviour</a>
 				</td>
 			</tr>
 			<tr>
@@ -153,8 +151,23 @@
 				<td class='dim'><input type='text' name='ircreason' style='width: 500px'></td>
 			</tr>
 			<tr>
-				<td class='light c'><b>Ban for</b></td>
-				<td class='dim'><input type='text' name='expire' style='width: 50px' value='0'> hours. (Leave blank or set to 0 for a permanent ban).</td>
+				<td class='light c'><b>Duration</b></td>
+				<!-- <td class='dim'><input type='text' name='expire' style='width: 50px' value='0'> hours. (Leave blank or set to 0 for a permanent ban).</td> -->
+				<!-- more stolen ideas -->
+				<td class='dim'>
+					<select name='expire'>
+						<option value='0'>*Permanent</option>
+						<option value='1'>1 hour</option>
+						<option value='3'>3 hours</option>
+						<option value='6'>6 hours</option>
+						<option value='24'>1 day</option>
+						<option value='72'>3 days</option>
+						<option value='168'>1 week</option>
+						<option value='336'>2 weeks</option>
+						<option value='744'>1 month</option>
+						<option value='1488'>2 months</option>
+					</select>
+				</td>
 			</tr>
 			<tr><td class='dark' colspan='2'><input type='submit' name='ipban' value='IP Ban'></td></tr>
 		</table>

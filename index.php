@@ -5,14 +5,13 @@
 		Marking (all) forums as read
 	*/
 	
-	if ( isset($_GET['markforumread']) && $loguser['id']){
-		if ( $loguser['id'] ){
+	if (isset($_GET['markforumread']) && $loguser['id']) {
+		if ($loguser['id']) {
 
 			if (filter_int($_GET['forumid'])){
 				$join 		= "LEFT JOIN threads t ON n.id = t.id";
 				$where 		= "WHERE t.forum = ".intval($_GET['forumid']);
-			}
-			else{
+			} else {
 				$join 		= "";
 				$where 		= "";
 			}
@@ -20,7 +19,6 @@
 			$sql->query("UPDATE threads_read n $join SET n.user{$loguser['id']} = ".ctime()." $where");
 		}
 		
-		//header("Location: ".(filter_int($_GET['forumid']) ? "forum.php?id=".$_GET['forumid'] : "index.php"));
 		redirect("index.php");
 	}	
 	
@@ -133,7 +131,7 @@
 					<a href='private.php'>Private messages</a> -- <?php echo $pm_txt ?>
 				</td>
 			</tr>
-		</table><br>
+		</table><br><br>
 		<?php
 	}
 	
@@ -227,7 +225,7 @@
 					<small> ".
 					"by ".makeuserlink(false, $forum)." ".
 					"<a href='thread.php?pid={$forum['lastpostid']}#{$forum['lastpostid']}'>
-						<img src='{$IMG['getlast']}'>
+						{$IMG['getlast']}
 					</a>
 					</small>
 				";

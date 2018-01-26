@@ -216,7 +216,7 @@
 			$skiplayout = $loguser['showhead'] ? "" : "NULL";
 			
 			$post = $sql->fetchq("
-				SELECT 	a.id, a.text, a.name aname, a.title atitle, a.time, a.rev, a.user,
+				SELECT 	a.id, a.text, a.name aname, a.title atitle, a.time, COUNT(o.id) rev, a.user,
 						a.forum, a.nohtml, a.nosmilies, a.nolayout, a.avatar, o.time rtime,
 						a.lastedited,
 						$skiplayout u.head, $skiplayout u.sign, u.lastip ip, $userfields uid, u.class,
@@ -224,9 +224,10 @@
 				FROM announcements a
 				
 				LEFT JOIN users             u ON a.user = u.id
-				LEFT JOIN announcements_old o ON a.id    = (SELECT MAX('o.id') FROM announcements_old o WHERE o.aid = a.id)
+				LEFT JOIN announcements_old o ON a.id   = o.pid
 				
 				WHERE a.id = $id
+				GROUP BY a.id
 			");
 			
 			if (!$post || !canviewforum($post['forum'])){
@@ -277,7 +278,6 @@
 						title		= ?,
 						text		= ?,
 						time		= ".ctime().",
-						rev			= ".($post['rev']+1).",
 						nohtml		= ".filter_int($_POST['nohtml']).",
 						nosmilies	= ".filter_int($_POST['nosmilies']).",
 						nolayout	= ".filter_int($_POST['nolayout']).",
@@ -295,8 +295,7 @@
 				
 				if ($sql->finish($c)){
 					setmessage("The announcement has been edited successfully.");
-					header("Location: announcement.php?id={$post['forum']}");
-					x_die();
+					redirect("announcement.php?id={$post['forum']}");
 				}
 				else errorpage("Couldn't edit the announcement.");
 			}
@@ -358,10 +357,10 @@
 			$nohtmlc 	= $nht ? "checked" : "";
 			$nolayoutc 	= $nly ? "checked" : "";
 
-			$fname = $id ? " <a href='forum.php?id=$id'>".$sql->resultq("SELECT name FROM forums WHERE id = $id")."</a> -" : "";
+			$fname = $post['forum'] ? " <a href='forum.php?id=$id'>".$sql->resultq("SELECT name FROM forums WHERE id = $id")."</a> -" : "";
 			
 			// used to be maxlength='100'
-			print "<a href='index.php'>".$config['board-name']."</a> -$fname <a href='announcement.php?id=$id'>Announcements</a> - Edit announcement";
+			print "<a href='index.php'>".$config['board-name']."</a> -$fname <a href='announcement.php".($post['forum'] ? "?id=$id" : "")."'>Announcements</a> - Edit announcement";
 			?>
 			<form action='announcement.php?act=edit&id=<?php echo $id ?>'  method='POST'>
 			<input type='hidden' name='auth' value='<?php echo $token ?>'>
@@ -507,14 +506,14 @@
 	$ann = $sql->query("
 	
 		SELECT  a.id, a.name aname, a.title atitle, a.user, a.time, a.text, 0 deleted, a.nohtml,
-				a.nosmilies, a.nolayout, a.avatar, a.lastedited, a.rev, 0 noob, o.time rtime,
+				a.nosmilies, a.nolayout, a.avatar, a.lastedited, COUNT(o.id) rev, 0 noob, o.time rtime,
 				$userfields uid, u.title, u.posts, u.since, u.location, u.lastview, u.class,
 				u.lastip ip, u.lastpost, $new_check new, u.rankset
 		FROM announcements a
 		
 		LEFT JOIN users              u ON a.user = u.id
-		LEFT JOIN announcements_old  o ON o.time = (SELECT MIN(o.time) FROM announcements_old o WHERE o.aid = a.id)
-		LEFT JOIN announcements_read n ON a.id    = n.id
+		LEFT JOIN announcements_old  o ON a.id   = o.aid
+		LEFT JOIN announcements_read n ON a.id   = n.id
 		
 		WHERE a.forum = $id
 		GROUP BY a.id DESC

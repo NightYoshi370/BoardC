@@ -31,8 +31,7 @@
 	$txt 		= "";
 	$pmcount	= 0;
 	
-	if ($action == 'send')
-	{
+	if ($action == 'send') {
 		
 		/*
 			Get the quoted PM if you can see it
@@ -78,6 +77,9 @@
 			
 			$userto = $sql->resultp("SELECT id FROM users WHERE name = ?", [prepare_string($_POST['sendto'])]);
 			if (!$userto)	errorpage("This user doesn't exist!");
+			
+			$lastpm = $sql->resultq("SELECT time FROM pms WHERE user = {$loguser['id']} ORDER BY id DESC");
+			if ($lastpm > ctime() - $config['post-break']) errorpage("You are posting too fast!");
 			
 			$sql->start();
 			$a 	= $sql->prepare("
@@ -204,8 +206,7 @@
 		
 		pagefooter();
 	}
-	else if ($action == 'view')
-	{
+	else if ($action == 'view') {
 		
 		if (!$id) errorpage("No PM specified.");
 		
@@ -213,7 +214,7 @@
 		$post = $sql->fetchq("
 			SELECT  p.id, p.name pmname, p.user, p.userto, p.time, p.text, p.nohtml,
 					p.nosmilies, p.nolayout, p.avatar, p.new,
-					$userfields uid, u.title, u.head, u.sign, u.posts, u.since,
+					$userfields uid, u.title, u.posts, u.since,
 					u.location, u.lastview, u.lastpost, u.rankset, u.class
 			FROM pms p
 			LEFT JOIN users u ON p.user = u.id
@@ -247,10 +248,7 @@
 		}
 		
 		$ranks 		= doranks($post['user'], true);
-		$layouts[$post['user']] = array(
-			'head'	=> output_filters($post['head'], false, $post['user']),
-			'sign'	=> output_filters($post['sign'], false, $post['user'])
-		);
+		$layouts	= loadlayouts($post['user'], true);
 		
 		pageheader("Private Messages: $pmname");
 		print $s.threadpost(array_merge($post,$data), false, false, false, false, true).$s;

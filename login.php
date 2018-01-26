@@ -52,14 +52,6 @@
 	else if ($action == "Login"){
 		checktoken();
 		
-		if (!$sysadmin && $isproxy){
-			irc_reporter("Bot/Proxy IP {$_SERVER['REMOTE_ADDR']} attempted to login.", 1);
-			errorpage("
-				Couldn't login, as you've been flagged as a proxy.<br>
-				If you've been blocked in error, contact {$config['admin-email']} or a <a href='memberlist.php?&sort=posts&ord=0&pow=5'>sysadmin</a>.
-			");
-		}
-		
 		$user =	filter_string($_POST['user']);
 		$pass = filter_string($_POST['pass']);
 		
@@ -83,7 +75,7 @@
 				$sql->query("DELETE FROM hits WHERE ip = '$lastip'");
 				
 				// (this happens when IP Banning someone but not his account)
-				if ($sql->resultq("SELECT 1 FROM ipbans WHERE ip = ".$loguser['lastip'])){
+				if ($sql->resultq("SELECT 1 FROM ipbans WHERE ip = '{$loguser['lastip']}'")){
 					irc_reporter("Previous IP address was IP banned - updated IP bans list.", 1);
 					ipban("IP Ban Evasion", false);
 					header("Location: index.php");
@@ -128,14 +120,6 @@
 	else {
 		irc_reporter("IP {$_SERVER['REMOTE_ADDR']} tried to mess with the login form.", 1);
 		errorpage("<h1>No.</h1>");
-		
-		//print $action;
-		/*
-		if ($isadmin) errorpage("<h1>It works!</h1>");
-		ipban("Abusive/Malicious Behaviour", "Automatic IP ban to {$_SERVER['REMOTE_ADDR']} for messing with the login form.");
-		setcookie('id', $fw->cookiebanid, 2147483647);
-		errorpage("Couldn't log in. Either the username or the password is incorrect.");
-		*/
 	}
 	
 	pagefooter();

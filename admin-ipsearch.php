@@ -71,7 +71,7 @@
 		} else {
 		
 			$users = $sql->query("
-				SELECT 	u.lastip, u.id, u.name, u.displayname, u.namecolor, u.powerlevel, u.sex,
+				SELECT 	u.lastip, $userfields,
 						u.since, u.posts, u.lastpost, u.lastview, i.ip ipbanned
 				FROM users u
 				LEFT JOIN ipbans i ON u.lastip = i.ip

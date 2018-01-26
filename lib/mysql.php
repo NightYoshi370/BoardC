@@ -15,9 +15,10 @@ class mysql{
 		try {
 			$dsn 		= "mysql:host=$host;dbname=$dbname;charset=utf8"; // set the charset directly here
 			$options 	= array(
-				PDO::ATTR_PERSISTENT 			=> $persist ? true : false,
-				PDO::ATTR_ERRMODE 				=> PDO::ERRMODE_EXCEPTION, //throw warning blah
-				PDO::ATTR_EMULATE_PREPARES   	=> false, // Disable this shit
+				PDO::ATTR_PERSISTENT 				=> $persist ? true : false,
+				PDO::ATTR_ERRMODE 					=> PDO::ERRMODE_EXCEPTION, //throw warning blah
+				PDO::ATTR_EMULATE_PREPARES   		=> false, // Disable this shit
+				PDO::MYSQL_ATTR_USE_BUFFERED_QUERY	=> true,
 			);
 			
 			$this->db = new PDO($dsn, $user, $pass, $options); 

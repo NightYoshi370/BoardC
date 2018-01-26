@@ -11,7 +11,10 @@
 	define('CONFIG_LENGTH', 29); // Pad with spaces until char 29. Increase it when values aren't aligned.
 	
 	if (file_exists("lib/config.php")) require "lib/config.php";
-	else $config['default-time-zone'] = 0;
+	else{
+		$config['default-time-zone'] = 0;
+		$hacks['ab-layout'] = true;
+	}
 	require "lib/helpers.php";
 	require "lib/layout.php";
 	
@@ -28,10 +31,6 @@
 	}
 	
 	$token = hash("sha256", file_get_contents("lib/token.txt"));
-
-	if (file_exists("lib/firewall.php")) {
-		define('INTERNAL_VER', true);
-	}
 	
 	?>
 	
@@ -177,15 +176,13 @@
 	*/	
 	if (!$step) {
 
-		if (defined('INTERNAL_VER')) {
-			$dist = "As this is an internal version, please...<br><span class='warn'>DO NOT DISTRIBUTE !!</span>";
-		} else {
-			$dist = "<br>You are free to use and distribute this version.";
-		}
-		
 		?>
-				Welcome to the BoardC installer! <?php echo $dist ?>
-			<br>Please report all bugs to Kak or the <a href='https://github.com/Kak2X/BoardC/issues'>Issue Tracker</a>
+				Welcome to the BoardC installer!
+			<br>
+			<br>As this is a public version, you are free to use and distribute it.
+			<br>As usual, no warranty of any kind is provided.
+			<br>
+			<br>Please report all bugs to Kak in either the <a href='http://jul.rustedlogic.net/thread.php?id=17911'>Jul</a> or <a href='http://board.kafuka.org/thread.php?id=1648'>Kafuka</a> threads.
 			<br>
 			<br>You will be prompted to enter the SQL Database Info in the next page.
 			<br>
@@ -206,6 +203,9 @@
 				<br>
 				<center>
 				<table>
+					<!-- autocomplete prevention -->
+					<input style='display:none' type='text'     name='__f__usernm__'>
+					<input style='display:none' type='password' name='__f__passwd__'>
 					<tr><td class='sect'>SQL Host:</td><td class='sect'><input type='text' name='sqlhost' value='<?php echo $_POST['sqlhost'] ?>'></td></tr>
 					<tr><td class='sect'>SQL User:</td><td class='sect'><input type='text' name='sqluser' value='<?php echo $_POST['sqluser'] ?>'></td></tr>
 					<tr><td class='sect'>SQL Password:</td><td class='sect'><input type='password' name='sqlpass' value='<?php echo $_POST['sqlpass'] ?>'></td></tr>
@@ -296,12 +296,13 @@
 		print "
 			Board Options
 			<br>Fill in the table. These options will be written in <span class='highlight'>'lib/config.php'</span>
+			<br>Please <i>be careful</i> and check the options before continuing.
 			<br>
 			<center>
 			<table style='padding: 20px'>
 				".set_heading('Layout options')."
 				".set_input("board-name", "Board name", 250, "BoardC")."
-				".set_input("board-title", "Header HTML", 550, "<img src='images/testboard.png' title='did you mean: BUGGY BOARD'>")."
+				".set_input("board-title", "Header HTML", 550, "<img src='images/sampletitle3.png'>")."
 				".set_input("board-url", "Header Link", 500, "http://localhost/board/")."
 				".set_input("footer-title", "Footer Text", 250, "The Internet")."
 				".set_input("footer-url", "Footer Link", 300, "http://localhost/")."
@@ -309,68 +310,46 @@
 				
 				".set_heading("Board options")."
 				".set_radio('admin-board', 'Admin board', 'No|Yes')."
-				".set_radio('allow-rereggie', 'Allow reregistering', 'No|Yes')."
+				".set_radio('allow-rereggie', 'Allow reregistering', 'No|Yes', 1)."
 				".set_radio('show-comments', 'Show HTML Comments', 'No|Yes')."
 				".set_radio('allow-thread-erase', 'Allow thread deletion', 'No|Yes', 1)."
-				".set_input('auth-salt', 'Token salt string', 300, 'silly string you should change')."
-				".set_input('post-break', 'Delay between posts', 20, 2, "seconds")."
+				".set_input('auth-salt', 'Token salt string', 300, 'sillydefaultstring')."
+				".set_input('post-break', 'Time to wait before posting again', 20, 0, "seconds")."
 				".set_input('posts-to-get-title', 'Custom title requirements', 40, 100, "posts")."
 
 				".set_heading("RPG Elements")."				
 				".set_input('coins-multiplier', 'Coins multiplier', 40, 20)."
 				
 				".set_heading("File uploads")."
-				".set_radio('enable-file-uploads', 'Allow image uploads', 'No|Yes', 1)."
+				".set_radio('enable-image-uploads', 'Allow image uploads', 'No|Yes', 1)."
+				".set_radio('enable-file-uploads', 'Allow file uploads (note: no coding for attachments)', 'No|Yes', 1)."
 				".set_input('max-icon-size-x', 'Max icon width', 50, 16, "px")."
 				".set_input('max-icon-size-y', 'Max icon height', 50, 16, "px")."
 				".set_input('max-icon-size-bytes', 'Max icon size', 70, 10000, "bytes")."
 				".set_input('max-avatar-size-x', 'Max avatar width', 50, 180, "px")."
 				".set_input('max-avatar-size-y', 'Max avatar height', 50, 180, "px")."
-				".set_input('max-avatar-size-bytes', 'Max avatar size', 70, 80000, "bytes");
+				".set_input('max-avatar-size-bytes', 'Max avatar size', 70, 80000, "bytes")."
 				
-				
-			if (defined('INTERNAL_VER')){
-				print "
-				".set_heading("Firewall")."
-				".set_radio('enable-firewall', 'Enable firewall', 'Disable|Enable', 1)."
-				".set_radio('pageview-limit-enable', 'Pageview limit...', 'Disable|Enable', 1)."
-				".set_input('pageview-limit', '...for users', 40, 0, "seconds to wait between each page")."
-				".set_input('pageview-limit-bot', '...for bots', 40, 120, "seconds to wait between each page");
-			}
-			
-			
-			print "
 				".set_heading("Defaults")."
 				".set_input('default-date-format', 'Default date format', 100, 'd/m/y')."
 				".set_input('default-time-format', 'Default time format', 100, 'H:i:s')."
 				
-				".set_heading("News engine")."
-				".set_radio('enable-news', 'Enable news', 'Disable|Enable', 1)."
-				".set_input("news-name", "News page name", 300, "News")."
-				".set_input("news-title", "News Header HTML", 500, "<font size=3>I 'see' News</font>")."
-				".set_input('max-preview-length', 'Character limit in preview', 40, 500)."
-				".set_powl('news-write-perm', 'Powerlevel required to add news', 1)."
-				".set_powl('news-admin-perm', 'Powerlevel required to moderate news', 4)."
-		
-				".set_heading("IRC Reporting (NOTE: Doesn't actually work)")."
-				".set_radio('enable-irc-reporting', 'Enable IRC Reporting', 'Disable|Enable', 1)."
-				".set_input('irc-server', "IRC Server", 230, "irc.badnik.zone")."
+				".set_heading("IRC Server Info")."
+				".set_input('irc-server', "IRC Servers (separated by ;)", 470, ["irc.sample.net","irc.test.com"])."
+				".set_input('irc-title', "IRC Server title", 250, "A sample IRC server")."
 				".set_input('public-chan', "Public channel", 160, "#powl0-grgrh")."
 				".set_input('private-chan', "Private channel", 160, "#powl1-bienf")."
 				
 				".set_heading("Development Options")."
 				".set_input('force-userid', 'Force user ID',  60, 0)."
-				".set_radio('force-sql-debug-on', 'Always show SQL Debugger', 'No|Yes', 0)."	
-				".set_radio('force-error-printer-on', 'Always show error reporter', 'No|Yes', 0)."
+				".set_radio('force-sql-debug-on', 'Always show SQL Debugger', 'No|Yes', 1)."	
+				".set_radio('force-error-printer-on', 'Always show error reporter', 'No|Yes', 1)."
 				
 				".set_heading("Misc")."
-				".set_radio('replace-image-before-login', 'Hide header to guests', 'No|Yes', 0)."
-				".set_radio('test-ext', 'Test hidden MP3 player', 'No|Yes', 0)."
 				".set_radio('failed-attempt-at-irc', 'Use alternate thread layout', 'No|Yes', 0)."
-				".set_radio('force-modern-web-design', 'Force modern Web design', 'No|Yes (bad idea)', 0)."
-				".set_radio('super-private', 'Super private (requires Private option in admin.php)', 'No|Yes', 0)."
-				".set_radio('mention-the-mailbag', 'Mention mailbag in IP Ban page', 'No|Yes', 0)."
-				".set_radio('joke-faq', 'Use the joke FAQ', 'No|Yes', 0)."
+				".set_radio('ab-layout', 'AB1.92 layout declarations', 'No|Yes', 1)."
+				".set_radio('a-good-feature', 'extract $_REQUEST', 'No|Yes', 1)."
+				".set_radio('username-rainbow', 'Force rainbow color usernames', 'No|Yes', 0)."
 				
 			</table>
 			<br>
@@ -486,7 +465,7 @@ $configfile = "<?php
 		'trash-id' 		  => 3, // DO NOT CHANGE
 		".config_bool('show-comments')."
 		".config_string('auth-salt')."
-		".config_int('post-break')." // 2 seconds to wait between posting consecutive posts / threads
+		".config_int('post-break')."
 		".config_bool('allow-thread-erase')."
 		".config_int('posts-to-get-title')."
 		
@@ -503,6 +482,7 @@ $configfile = "<?php
 		
 		// File uploads
 		
+		".config_bool('enable-image-uploads')."
 		".config_bool('enable-file-uploads')."
 		
 		".config_int('max-icon-size-x')."
@@ -512,14 +492,8 @@ $configfile = "<?php
 		".config_int('max-avatar-size-y')."
 		".config_int('max-avatar-size-bytes')."
 		
-		// Firewall
-		".config_bool('enable-firewall')."
-		".config_bool('pageview-limit-enable')."
-		".config_int('pageview-limit')." // Disable
-		".config_int('pageview-limit-bot')." // 1 each X seconds
-		
 		// Defaults
-		'default-time-zone' => 0, // Hours
+		'default-time-zone' => 0, // DO NOT CHANGE
 		".config_string('default-date-format')."
 		".config_string('default-time-format')."
 		
@@ -532,8 +506,9 @@ $configfile = "<?php
 		".config_int('news-admin-perm')."
 		
 		// IRC
-		".config_bool('enable-irc-reporting')." // like it's implemented or something
-		".config_string('irc-server')."
+		'enable-irc-reporting' => true, // DO NOT CHANGE (otherwise certain triggered errors won't be shown in the error list)
+		".config_array('irc-server')."
+		".config_string('irc-title')."
 		".config_string('public-chan')."
 		".config_string('private-chan')."
 		
@@ -549,13 +524,10 @@ $configfile = "<?php
 	
 	//options for dumb stuff
 	\$hacks = array(
-		".config_bool('replace-image-before-login')."
-		".config_bool('test-ext')."
 		".config_bool('failed-attempt-at-irc')."
-		".config_bool('force-modern-web-design')."
-		".config_bool('super-private')."
-		".config_bool('mention-the-mailbag')."
-		".config_bool('joke-faq')."
+		".config_bool('username-rainbow')."
+		".config_bool('a-good-feature')."
+		".config_bool('ab-layout')."
 	);
 	
 ?>";
@@ -608,10 +580,6 @@ $configfile = "<?php
 			
 			echo "Importing SQL files...";
 			$sql->import("install.sql");
-			if (defined('INTERNAL_VER')){
-				//die("WELP");
-				$sql->import("fw.sql");
-			}
 			
 			$c[] = $sql->query(
 				"INSERT INTO `events` (`id`, `user`, `time`, `text`, `private`) VALUES".
@@ -620,7 +588,7 @@ $configfile = "<?php
 
 			$c[] = $sql->query(
 				"INSERT INTO `users` (`id`, `name`, `password`, `lastip`, `since`, `powerlevel`) VALUES".
-				"(1, '".prepare_string($_POST['username'])."','".password_hash(prepare_string(prepare_string($_POST['pass1'])), PASSWORD_DEFAULT)."','{$_SERVER['REMOTE_ADDR']}', $ctime, 5),".
+				"(1, '".prepare_string($_POST['username'])."','".password_hash(prepare_string($_POST['pass1']), PASSWORD_DEFAULT)."','{$_SERVER['REMOTE_ADDR']}', $ctime, 5),".
 				"(2, 'Deleted user', 'rip','{$_SERVER['REMOTE_ADDR']}', $ctime, '-2');"
 			);	
 			
@@ -630,7 +598,7 @@ $configfile = "<?php
 			$c[] = $sql->query("
 					UPDATE users SET
 						name     = '".prepare_string($_POST['username'])."',
-						password = '".password_hash(prepare_string(prepare_string($_POST['pass1'])), PASSWORD_DEFAULT)."'
+						password = '".password_hash(prepare_string($_POST['pass1']), PASSWORD_DEFAULT)."'
 					WHERE id = 1
 				");
 		}
@@ -673,7 +641,7 @@ $configfile = "<?php
 			</tr>
 			<tr>
 				<td class='header'>
-					Acmlmboard Installer v1.3 (15-09-16)
+					Acmlmboard Installer v1.4-m (05-10-16)
 				</td>
 			</tr>
 		</table>
@@ -756,10 +724,11 @@ class mysql_mini{
 		$h = fopen($file, 'r');
 		$b = "";
 		while(($l = fgets($h, 256)) !== false){
+			$l	  = trim($l);
 			$b   .= $l;
-			$cnt  = strlen($l) - 2;
+			$cnt  = strlen($l);
 			// If the last character is ;, execute the query
-			if ($l[$cnt] == ';' || $l[$cnt-1] == ';'){ // sigh
+			if ($l[$cnt-1] == ';'){
 				//echo $b."<br>";
 				$c[] = $this->query($b);
 				$b = "";
@@ -800,22 +769,36 @@ class mysql_mini{
 	}
 	
 	function set_input($name, $desc, $width = 250, $default = "", $extra = ""){
-		if (!isset($_POST[$name])) $_POST[$name] = $default;
+		global $config, $hacks;
+		
+		if		(isset($_POST[$name])) 	$field = $_POST[$name];
+		else if (isset($config[$name])) $field = $config[$name];
+		else if (isset($hacks[$name])) 	$field = $hacks[$name];
+		else $field = $default;
+		
 		if ($extra) $extra = "&nbsp;$extra"; // I'm picky about this
+		if (is_array($field)) $field = implode(";", $field);
+
 		
 		// NOTE THIS HAS TO BE ADDSLASHED BEFORE GOING IN CONFIG.PHP
 		return "
 			<tr>
 				<td class='sect'>$desc</td>
 				<td class='sect2'>
-					<input type='text' name='$name' style='width: {$width}px' value=\"{$_POST[$name]}\">$extra
+					<input type='text' name='$name' style='width: {$width}px' value=\"$field\">$extra
 				</td>
 			</tr>";
 	}
 	
 	function set_radio($name, $desc, $vals, $default = 0){
-		if (!isset($_POST[$name])) $_POST[$name] = $default;
-		$sel[$_POST[$name]] = 'checked';
+		global $config, $hacks;
+		
+		if		(isset($_POST[$name])) 	$field = $_POST[$name];
+		else if (isset($config[$name])) $field = $config[$name];
+		else if (isset($hacks[$name])) 	$field = $hacks[$name];
+		else $field = $default;
+		
+		$sel[$field] = 'checked';
 		
 		$list 	= explode("|", $vals);
 		$txt 	= "";
@@ -833,26 +816,35 @@ class mysql_mini{
 	}
 	
 	function set_powl($name, $desc, $default = 0){
-		if (!isset($_POST[$name])) $_POST[$name] = $default;
+		global $config, $hacks;
 		
+		if		(isset($_POST[$name])) 	$field = $_POST[$name];
+		else if (isset($config[$name])) $field = $config[$name];
+		else if (isset($hacks[$name])) 	$field = $hacks[$name];
+		else $field = $default;
 		
 		return "
 			<tr>
 				<td class='sect'>$desc</td>
 				<td class='sect2'>
-					".powerList($_POST[$name], $name, true)."
+					".powerList($default, $name, true)."
 				</td>
 			</tr>";
 	}
 	
-	function set_psw($name, $desc, $width = 250){		
-		if (!isset($_POST[$name])) $_POST[$name] = '';
+	function set_psw($name, $desc, $width = 250){
+		global $config, $hacks;
+		
+		if		(isset($_POST[$name])) 	$field = $_POST[$name];
+		else if (isset($config[$name])) $field = $config[$name];
+		else if (isset($hacks[$name])) 	$field = $hacks[$name];
+		else $field = '';
 		
 		return "
 			<tr>
 				<td class='sect'>$desc</td>
 				<td class='sect2'>
-					<input type='password' name='$name' style='width: {$width}px' value=\"{$_POST[$name]}\">
+					<input type='password' name='$name' style='width: {$width}px' value=\"$field\">
 				</td>
 			</tr>";
 	}
@@ -861,4 +853,9 @@ class mysql_mini{
 	function config_bool  ($name){return str_pad("'$name'", CONFIG_LENGTH)."=> ".(filter_bool($_POST[$name]) ? (string) "true" : (string) "false").",";}
 	function config_int   ($name){return str_pad("'$name'", CONFIG_LENGTH)."=> ".filter_int($_POST[$name]).",";}
 	function config_string($name){return str_pad("'$name'", CONFIG_LENGTH)."=> \"".str_replace("\"", "\\\"", filter_string($_POST[$name]))."\",";}
+	function config_array ($name){
+		$_POST[$name] = str_replace("\"", "\\\"", filter_string($_POST[$name]));
+		$_POST[$name] = str_replace(";", "\",\"", $_POST[$name]);
+		return str_pad("'$name'", CONFIG_LENGTH)."=> [\"{$_POST[$name]}\"],";
+	}
 	function checkres($r){return $r ? "<span class='ok'>OK!</span>\n" : "<span class='warn'>ERROR!</span>\n";}

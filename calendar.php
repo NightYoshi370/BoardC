@@ -4,10 +4,8 @@
 
 	require "lib/function.php";
 	
-	// $startingday added to toggle between starting the table with Monday (0) or Sunday (1)
-	$startingday 	= 1; // TODO: this should be a per-user setting
-	
-	$markday 		= $startingday ? 1 : 6; // Used to highlight a different day value
+	// startingday added to toggle between starting the table with Monday (0) or Sunday (1)
+	$markday 		= $loguser['startingday'] ? 1 : 6; // Used to highlight a different day value
 	
 	// Defaults
 	if (!filter_int($_GET['y'])) 	$year = date("Y");
@@ -33,9 +31,9 @@
 	if ($view == 'b'){
 		// Get the birthdays from this month, then create the text
 		$users = $sql->query("
-			SELECT DAY(FROM_UNIXTIME(birthday)) day, id, name, displayname, namecolor, sex, powerlevel, birthday
-			FROM users
-			WHERE MONTH(FROM_UNIXTIME(birthday)) = $month
+			SELECT DAY(FROM_UNIXTIME(u.birthday)) day, $userfields
+			FROM users u
+			WHERE MONTH(FROM_UNIXTIME(u.birthday)) = $month
 		");
 		
 		while($x = $sql->fetch($users)){
@@ -46,7 +44,7 @@
 		
 		// Do the same for events, except with a bunch of extra checks
 		$users = $sql->query("
-			SELECT DAY(FROM_UNIXTIME(e.time)) day, u.id, u.name, u.displayname, u.namecolor, u.sex, u.powerlevel, e.text
+			SELECT DAY(FROM_UNIXTIME(e.time)) day, $userfields, e.text
 			FROM users u
 			LEFT JOIN events e ON u.id = e.user
 			WHERE MONTH(FROM_UNIXTIME(e.time)) = $month AND YEAR(FROM_UNIXTIME(e.time)) = $year AND (
@@ -66,7 +64,7 @@
 
 	
 	// Draw empty blocks
-	$j = date("N", mktime(0, 0, 0, $month, 1, $year)) + $startingday; // first day of month
+	$j = date("N", mktime(0, 0, 0, $month, 1, $year)) + $loguser['startingday']; // first day of month
 	
 	// If we didn't put the $j < 8 check it would print an empty line on days starting in the top left corner
 	if ($j < 8){
@@ -118,7 +116,7 @@
 	
 	// By default we start on Monday
 	$days_char = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-	if ($startingday){
+	if ($loguser['startingday']){
 		$days_char = array_ror($days_char, 1); // Rotate array elements to the right, so that we start on Sunday.
 	}
 	

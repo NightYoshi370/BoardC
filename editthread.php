@@ -155,16 +155,19 @@
 				Display a list of posts you're about to move
 			*/
 			$posts = $sql->query("
-				SELECT 	p.id, p.text, p.time, p.rev, p.user, p.deleted, p.thread, u.lastip ip,
+				SELECT 	p.id, p.text, p.time, COUNT(o.id) rev, p.user, p.deleted, p.thread, u.lastip ip,
 						1 nolayout, p.nohtml, p.nosmilies, p.lastedited, 0 noob,
-						o.time rtime, NULL title, $userfields tmp, (p.time > n.user{$loguser['id']}) new
+						o.time rtime, NULL title, $userfields tmp, u.class, u.posts, u.since,
+						(p.time > n.user{$loguser['id']}) new
 				FROM posts p
 				
 				LEFT JOIN users        u ON p.user   = u.id
 				LEFT JOIN threads_read n ON p.thread = n.id
-				LEFT JOIN posts_old    o ON o.time   = (SELECT MIN(o.time) FROM posts_old o WHERE o.pid = p.id)
+				LEFT JOIN posts_old    o ON p.id     = o.pid
 				
 				WHERE p.id IN (".implode(", ", $filteredstuff).") AND thread = $lookup
+				
+				GROUP BY p.id
 			");
 			
 			if (!$posts){ // Assume someone has edited all the checkboxes to point to posts IDs not in the thread
@@ -277,7 +280,7 @@
 	/*
 		Erase thread (from edit thread page)
 	*/
-	if (isset($_POST['deletethread']) && isset($_POST['submit'])){
+	if (isset($_GET['tkill']) || (isset($_POST['deletethread']) && isset($_POST['submit']))){
 		
 		if (!$sysadmin)						errorpage("Don't you know you shouldn't play with nuclear bombs?");
 		if (!$config['allow-thread-erase']) errorpage("This feature has been disabled.");
@@ -489,8 +492,8 @@
 					// Update and insert in a single query
 					$c[] = $sql->queryp("
 						INSERT INTO poll_choices (id, thread, name, color) VALUES ($i,$id,?,?)
-						ON DUPLICATE KEY UPDATE name = ?, color = ?",
-						[prepare_string($chtext[$i]), prepare_string($chcolor[$i]), prepare_string($chtext[$i]), prepare_string($chcolor[$i])]
+						ON DUPLICATE KEY UPDATE name = VALUES(name), color = VALUES(color)",
+						[prepare_string($chtext[$i]), prepare_string($chcolor[$i])]
 					);
 				}
 			}
@@ -853,6 +856,7 @@
 			</tr>
 		<?php
 		}
+		if ($thread['ispoll']) {
 			?>
 			<tr>
 				<td class='light c'><b>Close poll:</b></td>
@@ -860,6 +864,9 @@
 					<input type='checkbox' name='pollclosed' value=1 <?php echo $closepoll_sel ?>><label for='pollclosed'>Close Poll</label>
 				</td>
 			</tr>
+			<?php
+		}
+		?>
 			<tr>
 				<td colspan=2 class='dark'>
 					<input type='submit' value='Edit thread' name='submit'>&nbsp;

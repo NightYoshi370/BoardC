@@ -53,14 +53,13 @@
 			$pm_filter 	= ($time ? "AND" : "WHERE")." p.userto = ".$loguser['id'];
 			break;
 		}
-		default: errorpage("Unknown error (mode $type)", false);
 	}
 	
 	$q_table 	= strtolower($what);
 	$q_time 	= $time ? "WHERE p.time > ".(ctime()-$time) : "";
 	
 	$users = $sql->query("
-		SELECT COUNT(p.id) total, $userfields, u.icon, u.since
+		SELECT COUNT(p.id) total, $userfields, u.since
 		FROM $q_table p
 		LEFT JOIN users u ON p.user = u.id
 		$q_time
@@ -89,7 +88,7 @@
 		}
 		$pre 	= $x['total'];
 		
-		$icon 	= $x['icon'] ? "<img src='{$x['icon']}' height='16' width='16'>" : "&nbsp;";
+		$icon 	= is_file("userpic/{$x['id']}/m") ? "<img src='userpic/{$x['id']}/m'> " : "";
 		$width 	= sprintf("%.01f", $pre / $max * 100); // With more posts comes a longer minibar
 		
 		$txt .= "

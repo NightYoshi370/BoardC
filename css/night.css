@@ -2,7 +2,7 @@ body {
 	background: #999;
 	font-family: Verdana, Geneva, sans-serif;
 	font-size: 13px;
-	color: #fff;
+	color: #DDD;
 	
 	background-color: #000F1F;
 	background-image: url('images/themes/night/starsbg.png');
@@ -62,7 +62,7 @@ a:hover		{color: #CECAFE}
 
 table.main{
 	border-spacing: 0px;
-	color: #fff;
+	color: #DDD;
 	border-top:	#000000 1px solid;
 	border-left: #000000 1px solid;
 }

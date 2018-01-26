@@ -5,10 +5,8 @@
 
 	require "lib/function.php";
 	
-	// $startingday added to toggle between starting the table with Monday (0) or Sunday (1)
-	$startingday 	= 1; // TODO: this should be a per-user setting
-	
-	$markday 		= $startingday ? 1 : 6; // Used to highlight a different day value
+	// startingday added to toggle between starting the table with Monday (0) or Sunday (1)
+	$markday 		= $loguser['startingday'] ? 1 : 6; // Used to highlight a different day value
 	
 	// Defaults
 	if (!filter_int($_GET['y'])) 	$year 	= date("Y");
@@ -33,7 +31,7 @@
 		Daily Points (and counts)
 	*/
 	$users = $sql->query("
-		SELECT $userfields, COUNT(p.id) pcount, DAY(FROM_UNIXTIME(p.time)) pday
+		SELECT u.id, COUNT(p.id) pcount, DAY(FROM_UNIXTIME(p.time)) pday
 		FROM users u
 		LEFT JOIN posts p ON u.id = p.user
 		WHERE MONTH(FROM_UNIXTIME(p.time)) = $month AND YEAR(FROM_UNIXTIME(p.time)) = $year
@@ -83,7 +81,7 @@
 	*/
 
 	$month_pts = $sql->fetchq("
-		SELECT $userfields, COUNT(p.id) pcount
+		SELECT u.id, COUNT(p.id) pcount
 		FROM users u
 		LEFT JOIN posts p ON u.id = p.user
 		WHERE MONTH(FROM_UNIXTIME(p.time)) = $month AND YEAR(FROM_UNIXTIME(p.time)) = $year
@@ -93,21 +91,19 @@
 	
 	$acs_month = doacs($month_pts, true);
 		
-	$acs_txt = "".
-		strtoupper($month_txt)." $day
-		<hr style='width: 100px; margin-left: 0px;'>
-		Total amount of posts: {$acs_day['pcount']}<br>
-		<br>
-		<table cellspacing='0'>{$acs_day['ranks_txt']}</table><br>
-		<br>
-		Daily Points
-		<hr style='width: 100px; margin-left: 0px;'>
-		<table cellspacing='0'>{$acs_day['points_txt']}</table><br>
-		<br>
-		Monthly Points
-		<hr style='width: 100px; margin-left: 0px;'>
-		<table cellspacing='0'>{$acs_month['points_txt']}</table>
-	";
+	$acs_txt = strtoupper($month_txt)." $day"
+		."<hr style='width: 100px; margin-left: 0px;'>"
+		."Total amount of posts: {$acs_day['pcount']}<br>"
+		."<br>"
+		."<table cellspacing='0'>{$acs_day['ranks_txt']}</table><br>"
+		."<br>"
+		."Daily Points"
+		."<hr style='width: 100px; margin-left: 0px;'>"
+		."<table cellspacing='0'>{$acs_day['points_txt']}</table><br>"
+		."<br>"
+		."Monthly Points"
+		."<hr style='width: 100px; margin-left: 0px;'>"
+		."<table cellspacing='0'>{$acs_month['points_txt']}</table>";
 	
 	
 	
@@ -116,7 +112,7 @@
 	*/
 	
 	// Draw empty blocks
-	$j = date("N", mktime(0, 0, 0, $month, 1, $year)) + $startingday; // first day of month
+	$j = date("N", mktime(0, 0, 0, $month, 1, $year)) + $loguser['startingday']; // first day of month
 	
 	// If we didn't put the $j < 8 check it would print an empty line on days starting in the top left corner
 	if ($j < 8){
@@ -148,7 +144,7 @@
 						<a href='acs.php?y=$year&m=$month&d=$i'>$i</a> -- <i>Total posts : {$acs_stuff[$i]['pcount']}</i>
 					</td>
 				</tr>
-				{$acs_stuff[$i]['ranks_txt']}
+				".output_filters($acs_stuff[$i]['ranks_txt'])."
 			</table>
 		</td>
 		";
@@ -175,7 +171,7 @@
 	
 	// By default we start on Monday
 	$days_char = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-	if ($startingday){
+	if ($loguser['startingday']){
 		$days_char = array_ror($days_char, 1); // Rotate array elements to the right, so that we start on Sunday.
 	}
 
@@ -215,7 +211,7 @@
 		
 		<tr>
 			<td class='dim' width='50%' valign='top'>
-				$acs_txt
+				".output_filters($acs_txt)."
 			</td>
 			<td class='light' width='50%' valign='top'>
 				<textarea style='width: 100%; height: 400px;' readonly='readonly'>".lazyfilter($acs_txt)."</textarea>
@@ -247,7 +243,7 @@
 			$previous = $x['pcount'];
 			$res['pcount'] += $previous;  // add to total post count for the day
 			
-			$userlink = makeuserlink(false, $x);
+			//$userlink = makeuserlink(false, $x);
 			
 			// Give points
 			if (!$month){
@@ -262,22 +258,22 @@
 				$monthlypoints[ $x['id'] ] += $points;
 				
 				// Daily ranks
-				$res['ranks_txt'] .= "
-					<tr>
-						<td>$rank</td>
-						<td>$userlink</td>
-						<td>$previous</td>
-					</tr>";
+				$res['ranks_txt'] .= ""
+					."<tr>"
+					."	<td>$rank</td>"
+					."	<td>[user={$x['id']}]</td>"
+					."	<td>$previous</td>"
+					."</tr>";
 			}
 			else $points = $monthlypoints[ $x['id'] ];
 			
 			// User points
-			$res['points_txt'] .= "
-				<tr>
-					<td>$rank</td>
-					<td>$userlink</td>
-					<td>$points</td>
-				</tr>";
+			$res['points_txt'] .= ""
+				."<tr>"
+				."	<td>$rank</td>"
+				."	<td>[user={$x['id']}]</td>"
+				."	<td>$points</td>"
+				."</tr>";
 				
 
 		}

@@ -68,8 +68,10 @@
 			
 			<tr>
 				<td class='light c'>
-					This will recreate the themes table in the database based on the contents of themes.dat.<br>
-					If you proceed, the table will be truncated.
+					This will recreate the themes table in the database based on the contents of themes.dat.
+					<br>If you proceed, the table will be recreated.
+					<br>
+					<br>NOTE: SHUFFLING THEMES AROUND IN THEMES.DAT <B>WILL</B> BREAK THEME CHOICES
 				</td>
 			</tr>
 			

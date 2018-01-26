@@ -66,7 +66,7 @@
 				print "ID #{$x['tid']} Wrong last post ID [Current: {$x['lastpostid']}; Fixed: {$x['pid']}]\n";
 				$c[] = $sql->query("
 					UPDATE threads SET
-						lastpostid = {$x['id']},
+						lastpostid = {$x['pid']},
 						lastposttime = {$x['time']},
 						lastpostuser = {$x['user']}
 					WHERE id = {$x['tid']}

@@ -29,11 +29,6 @@
 		return (string) $string;
 	}
 	
-	function sgfilter(&$source){
-		trigger_error("Used deprecated sgfilter() function. Use filter_string() with second argument set as true.", E_USER_DEPRECATED);
-		return filter_string($source, true);
-	}
-	
 	// Filters applied when storing posts on the database
 	function input_filters($source){
 		// Javascript fun
@@ -45,8 +40,8 @@
 		$string = str_ireplace("execcommand","hex<z>het", $string);
 		
 		$string = preg_replace("'on\w+( *?)=( *?)(\'|\")'si", "jscrap=$3", $string);
-		$string = preg_replace("'<(/?)(script|meta|iframe|object|svg|form|textarea|xml|title|input|xmp|plaintext|base|!doctype|html|head|body)'i", "&lt;$1$2", $string);
-		$string = preg_replace("'<embed(.*?)>'si", "<h1>HI, I'M A FUCKING IDIOT AND I DESERVE TO DIE IN A PIT OF STACKED MUNCHERS</h1>", $string);		
+		$string = preg_replace("'<(/?)(script|embed|meta|iframe|object|svg|form|textarea|xml|title|input|xmp|plaintext|base|!doctype|html|head|body)'i", "&lt;$1$2", $string);
+		//$string = preg_replace("'<embed(.*?)>'si", "<h1>HI, I'M A FUCKING IDIOT AND I DESERVE TO DIE IN A PIT OF STACKED MUNCHERS</h1>", $string);		
 		
 		if ($string != $source) {
 			$sql->queryp("INSERT INTO jstrap (user, ip, source, filtered) VALUES (?,?,?,?)", array($loguser['id'], $_SERVER['REMOTE_ADDR'], $source, $string));
@@ -55,14 +50,79 @@
 	}
 	
 	// Filters applied when viewing posts
-	function output_filters($source, $forcesm = false, $id = 0){
-		global $post, $sql, $config;
+	function output_filters($source, $forcesm = false, $id = 0, $posts = 0, $days = 0, $extra = 0){
+		global $post, $sql, $loguser, $config, $tag_vals, $ranks;
 	
 		$string = $source;
 		
 		// A simple method to skip tag loading
 		if ($id && strpos($string, "&") !== false){
-			$string = dotags($string, $id);
+			
+			// Prepare stuff for tags
+			$rpgdays = ($days < 1) ? 1 : $days;
+			$tag_vals[$id]['posts']		= $posts;
+			$tag_vals[$id]['days']		= $days;
+			$tag_vals[$id]['exp']		= calcexp($posts, $rpgdays, $extra);
+			$tag_vals[$id]['level']		= calclvl($tag_vals[$id]['exp']);
+			$tag_vals[$id]['lvllen']	= totallvlexp($tag_vals[$id]['level']);
+			$tag_vals[$id]['expdone']	= $tag_vals[$id]['exp'] - calclvlexp($tag_vals[$id]['level']);
+			$tag_vals[$id]['expnext']	= calcexpleft($tag_vals[$id]['exp']);
+			
+			// Load tags just once
+			
+			static $tags = array(
+				'&numposts&' 	=> [2, '$tag_vals[$id]["posts"]'],
+				'&numdays&' 	=> [2, 'floor($tag_vals[$id]["days"])'],
+				
+				'&postrank&' 	=> [1, 'SELECT (count(*) + 1) FROM users WHERE posts >?'       , '[$tag_vals[$id]["posts"]]'],
+				'&postrank10k&' => [1, 'SELECT (count(*) + 1) FROM users WHERE posts+10000 > ?', '[$tag_vals[$id]["posts"]]'],
+				'&postrank20k&' => [1, 'SELECT (count(*) + 1) FROM users WHERE posts+20000 > ?', '[$tag_vals[$id]["posts"]]'],
+				'&postrank30k&' => [1, 'SELECT (count(*) + 1) FROM users WHERE posts+30000 > ?', '[$tag_vals[$id]["posts"]]'],
+				
+				'&5000&' 		=> [2, '5000  - $tag_vals[$id]["posts"]'],
+				'&20000&' 		=> [2, '20000 - $tag_vals[$id]["posts"]'],
+				'&30000&' 		=> [2, '30000 - $tag_vals[$id]["posts"]'],
+				
+				'&exp&' 		=> [2, '$tag_vals[$id]["exp"]'],				
+				'&expdone&' 	=> [2, '$tag_vals[$id]["expdone"]'],
+				'&expnext&' 	=> [2, '$tag_vals[$id]["expnext"]'],
+				'&expdone1k&' 	=> [2, 'floor($tag_vals[$id]["expdone"] / 1000)'],
+				'&expnext1k&' 	=> [2, 'floor($tag_vals[$id]["expnext"] / 1000)'],
+				'&expdone10k&' 	=> [2, 'floor($tag_vals[$id]["expdone"] / 10000)'],
+				'&expnext10k&' 	=> [2, 'floor($tag_vals[$id]["expnext"] / 10000)'],
+				'&exppct&' 		=> [2, 'sprintf("%01.1f", (1 - $tag_vals[$id]["expnext"] / $tag_vals[$id]["lvllen"]) * 100)'],
+				'&exppct2&' 	=> [2, 'sprintf("%01.1f", $tag_vals[$id]["expnext"] / $tag_vals[$id]["lvllen"] * 100)'],
+				'&expgain&' 	=> [2, 'calcexpgainpost($tag_vals[$id]["posts"], $tag_vals[$id]["days"])'],
+				'&expgaintime&' => [2, 'calcexpgaintime($tag_vals[$id]["posts"], $tag_vals[$id]["days"])'],
+				
+				'&level&' 		=> [2, '$tag_vals[$id]["level"]'],
+				'&lvlexp&' 		=> [2, 'calclvlexp($tag_vals[$id]["level"] + 1)'],
+				'&lvllen&' 		=> [2, '$tag_vals[$id]["lvllen"]'],
+				
+				'&date&' 		=> [2, 'printdate(ctime())'],
+				'&rank&' 		=> [2, '$ranks[$id]']
+			);
+
+			foreach($tags as $tag => $res){
+				// Is this tag found in the string?
+				if (strpos($string, $tag) !== false){
+					switch ($res[0]){
+						case 1: {
+							// Type 1 - prepared resultq
+							eval("\$arr = {$res[2]};");
+							$string = str_replace($tag, $sql->resultp($res[1], $arr), $string);
+							break;
+						}
+						case 2: {
+							// Type 2 - expression
+							eval("\$repl = {$res[1]};");
+							$string = str_replace($tag, $repl, $string);
+							break;
+						}
+					}
+				}
+			}
+			
 		}
 		
 		if ($forcesm) $string = dosmilies($string); // threadpost handles smilies by itself, but not profile.php
@@ -88,7 +148,13 @@
 			// This is the best tag
 			$string = preg_replace("'\[sp=(.*?)\](.*?)\[/sp\]'si", "<span style=\"border-bottom: 1px dotted #f00;font-style:italic\" title=\"did you mean: $1\">$2</span>", $string);
 			
+			// Misc
+			$string = preg_replace_callback("'\[user=(\d+)\]'si", 'userlink_from_id', $string);
+			
 		}
+		// Userlinks
+		$string = preg_replace_callback("'\\@\"(.*?)\"'si", 'userlink_from_name', $string);
+		
 		// This fucks up CSS not inline, I may move it eventually
 		$string = nl2br($string);
 
@@ -107,14 +173,13 @@
 	function userban($id, $expire = false, $permanent = false, $reason = "", $ircreason = true){
 		global $sql;
 
-		$expire_query	= ($expire && !$permanent) ? ",`ban_expire` = '".(ctime()+3600*intval($expire))."'" /*counts by hours*/ : "";
+		$expire_query	= ($expire && !$permanent) ? ",`ban_expire` = '".(ctime() + 3600 * intval($expire))."'": "";
 		$new_powl		= $permanent ? "-2" : "-1";
 		$whatisthis		= is_numeric($id) ? "id" : "name";
 				
-		$res = $sql->queryp("UPDATE users SET powerlevel = ?, title = ? $expire_query WHERE $whatisthis = ?", array($new_powl, $reason, $id));
+		$res = $sql->queryp("UPDATE users SET powerlevel = ?, title = ? $expire_query WHERE $whatisthis = ?", [$new_powl, $reason, $id]);
 		
-		if (!$res)
-			trigger_error("Query failure: couldn't ban user $whatisthis $id", E_USER_ERROR);
+		if (!$res) trigger_error("Query failure: couldn't ban user $whatisthis $id", E_USER_ERROR);
 		
 		else if ($ircreason !== false && $reason){
 			if ($ircreason === true) $ircreason = $reason;
@@ -202,23 +267,40 @@
 
 	// Used to update the "online users" bar / online.php
 	function update_hits($forum = 0, $thread = 0){
-		global $loguser, $sql;
+		global $loguser, $sql, $miscdata;
+
 		$sql->queryp("
 			INSERT INTO hits (user, ip, time, page, useragent, forum, thread) VALUES
 			({$loguser['id']}, '{$_SERVER['REMOTE_ADDR']}', ".ctime().", ?, ?, $forum, $thread)
 			
-			ON DUPLICATE KEY UPDATE
-			user 		= {$loguser['id']},
-			ip 			= '{$_SERVER['REMOTE_ADDR']}',
-			time 		= ".ctime().",
-			page 		= ?,
-			useragent 	= ?,
-			forum 		= $forum,
-			thread 		= $thread",
-			[$_SERVER['REQUEST_URI'], $_SERVER['HTTP_USER_AGENT'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_USER_AGENT']]
+			ON DUPLICATE KEY UPDATE	user = VALUES(user), ip = VALUES(ip), time = VALUES(time), page = VALUES(page), useragent = VALUES(useragent), forum = VALUES(forum), thread = VALUES(thread)",
+			[$_SERVER['REQUEST_URI'], $_SERVER['HTTP_USER_AGENT']]
 		);
 		// Hopefully this should be a tiny faster
 		if ($loguser['id'])	$sql->query("UPDATE users SET lastview = ".ctime()." WHERE id = ".$loguser['id']);
+		
+		// Update max users online record
+		// This should happen so rarely that we can allow to waste queries
+		// when a new record actually happens
+		$users = $sql->fetchq("
+			SELECT DISTINCT user
+			FROM hits
+			WHERE time > ".(ctime()-300)." AND user != 0
+		", true, PDO::FETCH_COLUMN);
+		
+		if (count($users) > $miscdata['maxusersonline']){
+			foreach($users as $x){
+				$txt[] = makeuserlink($x, NULL, true);
+			}
+			$record = implode(", ", $txt);
+			$sql->queryp("
+				UPDATE records SET
+					maxusersonline     = ".count($users).",
+					maxusersonlinetime = ".ctime().",
+					maxusersonline_txt = ?
+			", [$record]);
+		}
+		
 	}
 	
 	// Mostly used after creating posts
@@ -239,11 +321,12 @@
 		
 			if (!$newdata){
 				$newdata = $sql->fetchq("
-					SELECT p.id, p.user, p.time
+					SELECT t.lastpostid id, t.lastpostuser user, t.lastposttime time
 					FROM posts p
-					LEFT JOIN threads t ON p.thread = t.id
-					WHERE t.forum = {$id}
-					ORDER BY p.time DESC
+                    INNER JOIN threads t ON p.thread = t.id
+					WHERE t.forum = $id
+					ORDER BY p.id DESC
+                    LIMIT 1
 				");
 			}
 			
@@ -331,36 +414,7 @@
 		$time = $userdata['origtime'] ? $userdata['origtime'] : $userdata['time'];
 		return $sql->query("UPDATE users SET lastpost = $time WHERE id = $id");
 	}
-	/*
-	function update_threads_read($thread, $forum){
-		global $sql, $loguser;
-			
-		$sql->query("
-			UPDATE threads_read SET
-			user{$loguser['id']} = ".ctime()."
-			WHERE id = $thread
-		");
-		
-		// Delete obsolete entries
-		$min = $sql->resultq("SELECT MIN(user{$loguser['id']}) FROM threads_read WHERE id = $thread");
-		$sql->query("UPDATE forums_read SET user{$loguser['id']} = $min WHERE id = $forum");
-		$sql->query("DELETE FROM forums_read WHERE user{$loguser['id']} < $min");
-		
-	}*/
 	
-	
-	/*
-	function powlcheck($minpowl, $test = NULL){
-		trigger_error("Used old powlcheck() function instead of using the powerlevel variables.", E_USER_DEPRECATED);
-		global $loguser, $config;
-		
-		if (isset($test)) return ($test<$minpowl) ? false : true;
-		else if ($loguser['powerlevel']<$minpowl)//&& !$config['admin-board'] )
-			return false;
-		else return true;
-		
-	}
-	*/
 	// Permissions
 	
 	// The standard "sorry not an admin" page
@@ -368,7 +422,7 @@
 		global $loguser, $isadmin;
 		if (!$isadmin){
 			irc_reporter(($loguser['id'] ? "User {$loguser['name']} (ID #{$loguser['id']})" : "Guest (IP {$_SERVER['REMOTE_ADDR']})")." attempted to access an admin tool.", 1);
-			errorpage("Sorry, but this feature is reserved to administrators. You aren't one, so go away.");
+			errorpage("This feature is reserved to administrators. You aren't one, so go away.");
 		}
 	}
 	
@@ -390,7 +444,7 @@
 		
 		// Check if we're a local mod (if we're not banned, which normally isn't even allowed)
 		if ($forum && $loguser['powerlevel'] >= 0)
-			$makemealocalmod = $sql->resultq("SELECT 1 FROM forummods WHERE (fid = {$forum} AND uid = {$loguser['id']})");
+			$makemealocalmod = $sql->resultq("SELECT 1 FROM forummods WHERE fid = {$forum} AND uid = {$loguser['id']}");
 		else
 			$makemealocalmod = false;
 		
@@ -408,54 +462,6 @@
 	
 	
 	// Load/apply stuff
-	
-	/*
-		dotags() Apply tags
-		string 	- the text of a post/pm/announcement/whatever
-		id		- the user id. Necessary as some tags use an user's information
-	*/
-	function dotags($string, $id){
-		global $sql;
-		/*
-			Explanation of the dumb format used for tags:
-			<tag name> => [<type>, <replacement>]
-			where type can be
-			 - 0 (direct text replacement)
-			 - 1 (resultp SQL query with $id as ?)
-			 - eval'd expression (kill me)
-		*/
-		static $tags = array(
-			"&test&" 	=> [0, 'TEST TAG!'],
-			"&test2&"	=> [1, 'SELECT name FROM users WHERE id = ?'],
-			"&test3&"	=> [2, '13+$id-2'],
-		);
-		
-		foreach($tags as $tag => $res){
-			// Is this tag found in the string?
-			if (strpos($string, $tag) !== false){
-				switch ($res[0]){
-					case 0: {
-						// Type 0 - Simple replacement
-						$string = str_replace($tag, $res[1], $string);
-						break;
-					}
-					case 1: {
-						// Type 1 - prepared resultq
-						$string = str_replace($tag, $sql->resultp($res[1], [$id]), $string);
-						break;
-					}
-					case 2: {
-						// Type 2 - expression
-						eval("\$repl = {$res[1]};");
-						$string = str_replace($tag, $repl, $string);
-						break;
-					}
-				}
-			}
-		}
-		return $string;
-	}
-	
 	/*
 		doranks() Get all the rank name for the current thread/single id
 		It returns an array where $rankQuery[<user id>] = <text for this rank>
@@ -476,9 +482,7 @@
 						SELECT DISTINCT user
 						FROM posts
 						WHERE thread = $id
-						
 					", true, PDO::FETCH_COLUMN);
-					//LIMIT ".(filter_int($_GET['page']) * $loguser['ppp']).",{$loguser['ppp']}
 				} else {
 					$select = $sql->fetchq("
 						SELECT DISTINCT user
@@ -488,7 +492,7 @@
 				}
 				
 				// [0.30 Beta] If we don't check if the returned array is empty
-				// It will break the following query
+				// it will break the following query
 				if (!$select) return array();
 				
 			}
@@ -550,9 +554,7 @@
 					SELECT DISTINCT user
 					FROM posts
 					WHERE thread = $id
-					
 				", true, PDO::FETCH_COLUMN);
-				//LIMIT ".(filter_int($_GET['page']) * $loguser['ppp']).",{$loguser['ppp']}
 			} else {
 				$select = $sql->fetchq("
 					SELECT DISTINCT user
@@ -562,7 +564,7 @@
 			}
 			
 			// [0.30 Beta] If we don't check if the returned array is empty
-			// It will break the following query
+			// it will break the following query
 			if (!$select) return array();
 			
 		}
@@ -570,8 +572,10 @@
 		$skiplayout = $loguser['showhead'] ? "" : "NULL";
 		
 		$layQuery = $sql->query("
-			SELECT u.id, $skiplayout u.head, $skiplayout u.sign
+			SELECT 	u.id, u.posts, (".ctime()." - u.since) days,
+					$skiplayout u.head, $skiplayout u.sign, r.bonus_exp
 			FROM users u
+			LEFT JOIN rpg_classes r ON u.class = r.id
 			WHERE u.id ".($single ? "= $id" : "IN (".implode(",", $select).")")
 		);
 		
@@ -581,8 +585,8 @@
 			to header and signature
 		*/
 		while($x = $sql->fetch($layQuery)){
-			$layouts[$x['id']]['head'] = output_filters($x['head'], false, $x['id']);
-			$layouts[$x['id']]['sign'] = output_filters($x['sign'], false, $x['id']);
+			$layouts[$x['id']]['head'] = output_filters($x['head'], false, $x['id'], $x['posts'], $x['days'], $x['bonus_exp']);
+			$layouts[$x['id']]['sign'] = output_filters($x['sign'], false, $x['id'], $x['posts'], $x['days'], $x['bonus_exp']);
 		}
 		
 		return $layouts;
@@ -632,20 +636,6 @@
 		$res = $sql->resultq("SELECT thread FROM posts WHERE id = $pid");
 		return $res;
 	}
-	/*
-	function getforumfrompost($pid){
-		global $sql;
-		if (!$pid){
-			trigger_error("No post id given to getforumfrompost().", E_USER_WARNING);
-			return false;
-		}
-		$res = $sql->resultq("
-			SELECT t.forum
-			FROM posts p
-			LEFT JOIN threads t ON p.thread = t.id
-		");
-		return $res;
-	}*/
 	
 	function getpostcount($id, $single=false){
 		global $sql;
@@ -662,24 +652,6 @@
 	}
 	
 	/*
-	function getforumfromurl($url){
-		
-		// Post ID
-		if ($x = stripos($url, "pid="))
-			return getforumfrompost(explode("&", substr($url, $x+4), 1));
-		
-		else if ($x = stripos($url, "id=")){
-			// Thread ID
-			if (stripos($url, "thread")){
-				return $sql->resultq("SELECT forum FROM thread WHERE id = ".explode("&", substr($url, $x+3), 1) );
-			
-			// Forum ID
-			else return explode("&", substr($url, $x+3), 1)
-		}
-	}
-	*/
-	
-	/*
 		imageupload() check if you're uploading a valid image
 		file	- an uploaded image (what you get from _FILES)
 		maxsize - max image size allowed
@@ -689,6 +661,8 @@
 	*/
 	
 	function imageupload($file, $maxsize, $x, $y, $dest = false){
+		
+		if (!$GLOBALS['config']['enable-image-uploads']) errorpage("Image uploads have been disabled.");
 		
 		if (!$file['tmp_name'])
 			errorpage("No file selected.");
@@ -716,13 +690,12 @@
 	function x_unquote($x){return str_replace("\"","",$x);}
 	function x_die($msg=""){error_printer(true, false, ""); die($msg);}
 	function printdate($t, $x=true, $y=true){return date(($x?$GLOBALS['loguser']['dateformat']:"")." ".($y?$GLOBALS['loguser']['timeformat']:""), $t+$GLOBALS['loguser']['tzoff']*3600);}
-	function array_extract($a,$i){foreach($a as $j => $c){$r[$j]=$c[$i];}return $r;} //TODO: Why not array_column() ?
+	function array_extract($a,$i){foreach($a as $j => $c){$r[$j]=$c[$i];}return $r;}
 	function contains_any($f,$a){foreach($a as $x){if(strpos($f,$x)!==false)return 1;}return 0;}
 	function array_ror($a,$c=1){for($i=0;$i<$c;$i++){array_unshift($a, end($a));array_pop($a);}return $a;}
 	function d($x){print "<title>VDS - BoardC</title><body style='background: #000; color: #fff'><pre>";var_dump($x); x_die();}
 	function prepare_string(&$x){return input_filters(filter_string($x, true));}
 	function pick_any($a){return $a[mt_rand(0, count($a)-1)];}
-	//function redirect($x){pageheader("Redirect Error Handler");print "Click <a href='$x'>here</a> to continue.";pagefooter();}
 	function redirect($url){header("Location: $url");x_die();}
 	function choosetime($t){
 		if 		($t<60) 	return "$t second".($t==1 ? "" : "s");
@@ -735,13 +708,7 @@
 		$b = new DateTime(date("Y-m-d", $b));
 		return $b->diff($a)->y;
 	}
-	
-	function getfilename(){
-		trigger_error("Used deprecated getfilename() function. Use \$scriptname instead.", E_USER_DEPRECATED);
-		$path = explode("/", $_SERVER['PHP_SELF']);
-		return $path[count($path)-1];
-	}
-	
+		
 	/*
 		Handy reminder why this function is here:
 		explode() doesn't like splitting NULL values
@@ -835,12 +802,6 @@
 				</form>
 			", false);
 		}
-	}
-
-	function checkgettoken($extra=""){
-		// Wrapper
-		trigger_error("checkgettoken", E_USER_DEPRECATED);
-		return checktoken($extra, true);
 	}
 	
 	function dec_rom($num){
@@ -947,7 +908,8 @@
 	
 
 	function irc_reporter($msg, $id){
-		global $config;
+		$vxd = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
+		global $config, $errors;
 		
 		if ($config['enable-irc-reporting']){
 			switch ($id){
@@ -962,6 +924,9 @@
 			}
 			// TODO: Actual IRC Reporting
 		}
+		
+		$errors[] = array(E_USER_NOTICE, $msg, $vxd['file'], $vxd['line']);
+		
 	}
 	
 

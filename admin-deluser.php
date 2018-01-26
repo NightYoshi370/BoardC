@@ -71,6 +71,10 @@
 			$c[] = $sql->query("UPDATE pms     SET user   = $dest, avatar = 0 WHERE user = $id");
 			$c[] = $sql->query("UPDATE pms     SET userto = $dest WHERE userto = $id");
 			$c[] = $sql->query("UPDATE threads SET user   = $dest WHERE user   = $id");
+			$c[] = $sql->query("UPDATE news          SET user = $dest WHERE user = $id");
+			$c[] = $sql->query("UPDATE news_comments SET user = $dest WHERE user = $id");			
+			$c[] = $sql->query("UPDATE user_comments SET user = $dest WHERE user = $id");
+			$c[] = $sql->query("UPDATE events SET user = $dest WHERE user = $id");			
 			
 			// Update last post views
 			$c[] = $sql->query("UPDATE threads SET lastpostuser = $dest WHERE lastpostuser = $id");

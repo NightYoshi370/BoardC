@@ -8,8 +8,10 @@
 	
 	require "lib/function.php";
 	
-	$id 	 		= filter_int($_GET['id']);
-	$user 	 		= filter_int($_GET['user']);
+	$id 	= filter_int($_GET['id']);
+	$user 	= filter_int($_GET['user']);
+	$fav	= isset($_GET['fav']);
+	$act	= filter_string($_GET['act']);
 	
 	if ($user) {
 		/*
@@ -37,6 +39,91 @@
 		$announce = $newthread = "";
 		pageheader($forum['name']);
 		
+	}
+	else if ($fav || $act) {
+		/*
+			Favourites
+		*/
+		
+		if (!$loguser['id']){
+			errorpage("Sorry, but you need to be logged in to access the favorites.");
+		}
+		
+		// This is a global actions done when changing favourites
+		// You do want to check for the permissions to view the forum
+		// (fun fact: this part is mostly unchanged from my attempt to clean up AB1.92)
+		if ($act){
+			checktoken(true);
+			
+			$thread = filter_int($_GET['thread']);
+			$t 	= $sql->fetchq("
+				SELECT t.name, t.forum, f.minpower, f.id
+				FROM threads t
+				LEFT JOIN forums f ON t.forum = f.id
+				
+				WHERE 	t.id = $thread
+						AND NOT ISNULL(f.id)
+						AND (!f.minpower OR f.minpower <= {$loguser['powerlevel']})
+			");
+			
+			// With a missing thread, bad forum or powerlevel too low you quit
+			if (!$t) redirect("index.php");
+			
+			switch($act){
+				case 'add':{
+					$sql->query("
+						INSERT IGNORE INTO favorites (user, thread)
+						VALUES ({$loguser['id']}, $thread)
+					");
+					$verb = "added to";
+					break;
+				}
+				case 'rem':{
+					$sql->query("
+						DELETE FROM favorites
+						WHERE user = {$loguser['id']} AND thread = $thread
+					");
+					$verb = "removed from";
+					break;
+				}
+				default:{
+					// lolz
+					//errorpage("No.");
+					$query 	= "";
+					$verb 	= "left as-is from";
+				}
+			}
+			
+			errorpage("
+				\"".htmlspecialchars($t['name'])."\" has been $verb your favorites.<br>
+				Click <a href='forum.php?id={$t['forum']}'>here</a> to return to the forum.
+			");
+		}	
+		
+		update_hits();
+		
+		$where = "
+		, f.minpower
+			FROM threads t
+			LEFT  JOIN forums    f ON  f.id = t.forum
+			LEFT  JOIN posts     p ON  t.id = p.thread
+			INNER JOIN favorites v ON (t.id = v.thread AND v.user = {$loguser['id']})
+			WHERE !f.minpower OR f.minpower <= {$loguser['powerlevel']}
+			GROUP BY t.id DESC
+		";
+		
+		$forum['name']	= "Favorites";
+		
+		$forum['threads'] = $sql->resultq("
+			SELECT COUNT(v.id)
+			FROM favorites v
+			INNER JOIN threads t ON v.thread = t.id
+			INNER JOIN forums  f ON t.forum  = f.id
+			WHERE v.user = {$loguser['id']} AND (!f.minpower OR f.minpower <= {$loguser['powerlevel']})
+		");
+		$announce = $newthread = "";
+		
+		pageheader("Favorites");
 	}
 	else if ($id) {
 		/*
@@ -101,6 +188,16 @@
 			$newthread = "";
 		}
 		
+		?>
+		<table class='main w fonts'>
+			<tr>
+				<td class='light c'>
+					<?php echo onlineusers($id) ?>
+				</td>
+			</tr>
+		</table>
+		<?php
+		
 	}
 	else {
 		errorpage("No forum ID specified.");
@@ -109,15 +206,7 @@
 	/*
 		Online users and New Thread controls
 	*/
-	?>
-	<table class='main w fonts'>
-		<tr>
-			<td class='light c'>
-				<?php echo onlineusers($id) ?>
-			</td>
-		</tr>
-	</table>
-	
+	?>	
 	<table class='w'>
 		<tr>
 			<td class='w'>
@@ -146,8 +235,8 @@
 		LIMIT ".(filter_int($_GET['page'])*$loguser['tpp']).", {$loguser['tpp']}
 	");
 
-	if (!$threads){
-		if ($user) errorpage("There are no threads to show.", false);
+	if (!$forum['threads']){
+		if ($user || $fav) errorpage("There are no threads to display.", false);
 		?>
 		<table class='main w c'>
 			<tr>
@@ -213,7 +302,7 @@
 						<nobr> ".
 							"by ".makeuserlink($thread['lastpostuser'])." ".
 							"<a href='thread.php?pid={$thread['lastpostid']}#{$thread['lastpostid']}'>
-								<img src='{$IMG['getlast']}'>
+								{$IMG['getlast']}
 							</a>
 						</nobr>
 					</small>
@@ -236,7 +325,7 @@
 				$unread_txt   = $new_db[$thread['id']][1]; // Add number of unread posts to status column
 				$new = "
 					<a href='thread.php?pid={$new_db[$thread['id']][0]}#{$new_db[$thread['id']][0]}'>
-						<img src='{$IMG['statusfolder']}/getnew.png'>
+						{$IMG['getnew']}
 					</a> "; // Link to newest unread post
 			} else {
 				$new = $unread_txt = "";
@@ -309,8 +398,10 @@
 		print "</table>$pagectrl";
 	}
 	
-	if (!$user) {
+	if ($id) {
 		print "<table><tr><td class='w' style='text-align: left;'>".doforumjump($id)."</td><td>$newthread</td></tr></table>";
+	} else {
+		print "<a href='index.php'>{$config['board-name']}</a> - {$forum['name']}";
 	}
 	
 	pagefooter();

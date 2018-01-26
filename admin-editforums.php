@@ -563,7 +563,7 @@
 								<nobr> 
 									by ".makeuserlink(false, $forum)." 
 									<a href='thread.php?pid={$forum['lastpostid']}#{$forum['lastpostid']}'>
-										<img src='{$IMG['statusfolder']}/getlast.png'>
+										{$IMG['getlast']}
 									</a>
 								</nobr>
 							</small>";
@@ -616,7 +616,7 @@
 								<nobr> 
 									by ".makeuserlink(false, $forum)." 
 									<a href='thread.php?pid={$forum['lastpostid']}#{$forum['lastpostid']}'>
-										<img src='{$IMG['statusfolder']}/getlast.png'>
+										{$IMG['getlast']}
 									</a>
 								</nobr>
 							</small>";

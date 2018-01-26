@@ -2,7 +2,8 @@
 
 	require "lib/function.php";
 	
-	$id = filter_int($_GET['id']);
+	$id 	= filter_int($_GET['id']);
+	$page	= filter_int($_GET['page']); // for profile comments only
 
 	/*
 		The amount of fields to select in 'users' were ridiculous, so we simply select them all
@@ -30,7 +31,7 @@
 	pageheader("Profile for ".($user['displayname'] ? $user['displayname'] : $user['name']));
 
 	$totaldays 		= (ctime()-$user['since'])/86400;
-	$user['rating'] = $sql->resultq("SELECT AVG(rating) FROM ratings WHERE userto = $id"); 
+	$user['rating'] = $sql->resultq("SELECT 1 FROM ratings WHERE userto = $id"); 
 
 	$email = $user['email'];
 	// Don't bother with the alt messages if there's no email specified
@@ -49,12 +50,12 @@
 				break;
 		}
 	}
-	
-	$exp = calcexp($user['posts'], $totaldays, $user['bonus_exp']);
+	$rpgdays = $totaldays >= 1 ? $totaldays : 1;
+	$exp = intval(calcexp($user['posts'], $rpgdays, $user['bonus_exp']));
 	if ($user['bonus_exp']){
 		// I don't know if I'll change the algorithm for bonus exp at some point
 		// Right now these are lazily added to the exp count, but it will probably change later on
-		$normalexp = calcexp($user['posts'], $totaldays);
+		$normalexp = calcexp($user['posts'], $rpgdays);
 		$bonus_out = $exp - $normalexp;
 		$expdetail = "$normalexp Base + $bonus_out RPG class bonus, ";
 	} else {
@@ -63,8 +64,8 @@
 	$level 		= calclvl($exp);
 	$expleft 	= calcexpleft($exp);
 	if ($user['posts']){
-		$exppost = calcexpgainpost($user['posts'], $totaldays);
-		$exptime = calcexpgaintime($user['posts'], $totaldays);
+		$exppost = calcexpgainpost($user['posts'], $rpgdays);
+		$exptime = calcexpgaintime($user['posts'], $rpgdays);
 		$expgain = "Gain: $exppost EXP per post, $exptime seconds to gain 1 EXP when idle";
 	} else {
 		$expgain = "";
@@ -74,7 +75,33 @@
 		EXP: $exp ({$expdetail}for next level: $expleft)<br>
 		$expgain
 	";
+	
+	
+	if ($user['rating']){
+		// Calculate amount of points worth for any user rating
+		// Higher the level, more the rating counts
+		$rating_level = $sql->query("
+			SELECT r.rating, u.posts, u.since, c.bonus_exp
+			FROM ratings r
+			LEFT JOIN users       u ON r.userfrom = u.id
+			LEFT JOIN rpg_classes c ON u.class    = c.id
+			WHERE r.userto = $id
+		");
+		$ratetotal = $ratescore = 0;
+		while($x = $sql->fetch($rating_level)){
+			$days = (ctime() - $x['since']) / 86400;
+			if ($days < 1) $days = 1;
+			$level 	= calclvl(calcexp($x['posts'], $days, $x['bonus_exp']));
+			$ratescore  += $x['rating'] * $level;
+			$ratetotal += $level;
+		}
+		$ratetotal *= 10;
 
+		$rating_txt = (floor($ratescore * 1000 / $ratetotal) / 100)." ($ratescore/$ratetotal, ".$ratings." vote".($ratings==1 ? "" : "s").")".($isadmin ? " <a href='rateuser.php?id=".$user['id']."&view'>View ratings</a>" : "");
+		
+	} else {
+		$rating_txt = "None";
+	}
 	/*
 		I have no idea how to organize this well in an array
 		I guess I'll leave it as-is :|
@@ -85,7 +112,7 @@
 		"Title"			=> ($user['title'] ? $user['title'] : ""),
 		"Total posts" 	=> ($user['rposts'] ? $user['posts']." (".$user['rposts']." found, ".sprintf("%.02f posts per day)", $user['rposts']/$totaldays).($user['posts'] < 5000 ? " -- Projected date for 5000 posts: ".printdate(ctime()+5000/($user['rposts']/($totaldays*86400))) : "") : "None"),
 		"Total threads" => ($user['threads'] ? $user['threads'].sprintf(" (%.02f threads per day)", $user['threads']/$totaldays) : "None"),
-		"User rating"	=> $user['rating'] ? sprintf("%.02f",$user['rating'])." (".$ratings." vote".($ratings==1 ? "" : "s").")".($isadmin ? " <a href='rateuser.php?id=".$user['id']."&view'>View ratings</a>" : "") : "None",
+		"User rating"	=> $rating_txt,
 		"EXP"			=> $exp_txt,
 		"Registered on" => printdate($user['since'])." (".choosetime(ctime()-$user['since'])." ago)",
 		"Last post"		=> ($user['posts'] ? printdate($user['lastpost']).", in ".(canviewforum($user['tforum']) ? "<a href='thread.php?id=".$user['tid']."'>".htmlspecialchars($user['tname'])."</a> (<a href='forum.php?id=".$user['tforum']."'>".$user['fname']."</a>)" : "<i>(Restricted forum)</i>") : "None"),
@@ -111,9 +138,9 @@
 
 	$fields["Personal information"] = array(
 		"Real name" 	=> $user['realname'],
-		"Location"	 	=> output_filters($user['location'], true, $id),
+		"Location"	 	=> output_filters($user['location'], true, $id, $user['posts'], $totaldays, $user['bonus_exp']),
 		"Birthday"	 	=> isset($user['birthday']) ? date("l, F j Y", $user['birthday'])." (".getyeardiff($user['birthday'],ctime())." years old)" : "",
-		"Bio"		 	=> output_filters($user['bio'], true, $id),
+		"Bio"		 	=> output_filters($user['bio'], true, $id, $user['posts'], $totaldays, $user['bonus_exp']),
 	);
 	
 	/*
@@ -208,10 +235,50 @@
 	
 	$ranks 		= doranks($id, true);
 	$layouts[$id] = array(
-		'head'	=> output_filters($user['head'], false, $id),
-		'sign'	=> output_filters($user['sign'], false, $id)
+		'head'	=> output_filters($user['head'], false, $id, $user['posts'], $rpgdays, $user['bonus_exp']),
+		'sign'	=> output_filters($user['sign'], false, $id, $user['posts'], $rpgdays, $user['bonus_exp'])
 	);
-
+	
+	/*
+		Profile comments
+	*/
+	
+	$comments = $sql->query("
+		SELECT c.id cid, c.from, c.time, c.text, $userfields
+		FROM user_comments c
+		LEFT JOIN users u ON c.from = u.id
+		WHERE c.user = $id
+		ORDER BY c.id DESC
+		LIMIT ".($page * 10).", 10
+	");
+	$total 		= $sql->resultq("SELECT COUNT(id) FROM user_comments WHERE user = $id");
+	$pagectrl	= dopagelist($total, 10, "profile");
+	
+	for ($comm_txt = ""; $c = $sql->fetch($comments);){
+		$dellink = $isadmin ? "<a class='danger' href='usercomment.php?act=del&id={$c['cid']}&auth=$token'>Remove</a> | " : "";
+		$comm_txt .= "
+			<tr class='fonts'>
+				<td class='light nobr' style='padding-right: 5px'>$dellink".printdate($c['time'])."</td>
+				<td class='light w'>".makeuserlink(false, $c).": ".htmlspecialchars(output_filters($c['text']))."</td>
+			</tr>
+		";
+	}
+	
+	if (!$comm_txt){
+		$comm_txt = "<tr><td class='light fonts' colspan=2><i>There are no profile comments for this user.</i></td></tr>";
+	}
+	
+	if (!$loguser['id']) $comm_msg = "You must be logged in to add a comment for this user.";
+	else if ($isbanned)  $comm_msg = "Banned users aren't allowed to add profile comments.";
+	else {
+		$comm_msg = "
+		<form method='POST' action='usercomment.php?act=add&id=$id'>
+		<input type='hidden' name='auth' value='$token'>
+		".makeuserlink($loguser['id']).": <input type='text' name='text' style='width: 800px; height: 16px; vertical-align: middle'></textarea><div style='height: 5px'></div>
+		<input type='submit' name='add' value='Add comment'>
+		</form>
+		";
+	}
 	print "
 	<span style='vertical-align: middle'>Profile for ".makeuserlink(false, $user, true)."</span>
 	
@@ -242,16 +309,24 @@
 	
 	<br>
 	
+	<table class='main w'>
+		<tr><td class='head c' colspan=2>User Comments</td></tr>
+		$comm_txt
+		".($pagectrl ? "<tr><td class='dim fonts' colspan=2>$pagectrl</td></tr>" : "")."
+		<tr><td class='dim fonts' colspan=2>$comm_msg</td></tr>
+	</table>
+	<br>
 	<table class='main w fonts'>
 		<tr><td class='head c'>Options</td></tr>
 		
 		<tr>
 			<td class='dim c'>
-				<a href='showposts.php?id=$id'>Show posts</a> |
-				".($isadmin ? "<a href='editprofile.php?id=$id'>Edit user</a> | <a href='editavatars.php?id=$id'>Edit avatars</a> |" : "")."
-				<a href='forum.php?user=$id'>View threads by this user</a> |
-				<a href='private.php?act=send&id=$id'>Send private message</a> |
-				".($isadmin && $id!=1 ? "<a href='private.php?id=$id'>View private messages</a> |" : "")."
+				<a href='showposts.php?id=$id'>Show posts</a> | 
+				".($isadmin ? "<a href='editprofile.php?id=$id'>Edit user</a> | <a href='editavatars.php?id=$id'>Edit avatars</a> | " : "")."
+				<a href='forum.php?user=$id'>View threads by this user</a> | 
+				<a href='private.php?act=send&id=$id'>Send private message</a> | 
+				".($isadmin ? "<a href='private.php?id=$id'>View private messages</a> | " : "")."
+				".($isadmin ? "<a href='event.php?id=$id'>View events</a> | " : "")."
 				<a href='rateuser.php?id=$id'>Rate user</a>
 			</td>
 		</tr>

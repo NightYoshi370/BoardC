@@ -23,6 +23,7 @@
 	
 	$p    = $user['posts'];
 	$d    = (ctime() - $user['since']) / 86400;
+	if ($d < 1) $d = 1;
 	
 
 	/*

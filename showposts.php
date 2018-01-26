@@ -30,17 +30,18 @@
 	$new_check = $loguser['id'] ? "(p.time > n.user{$loguser['id']})" : "(p.time > ".(ctime()-300).")";
 	
 	$posts = $sql->query("
-		SELECT 	p.id, p.text, p.time, p.rev, p.user, p.deleted, p.thread, p.nohtml,
+		SELECT 	p.id, p.text, p.time, COUNT(o.id) rev, p.user, p.deleted, p.thread, p.nohtml,
 				p.nosmilies, p.nolayout, p.avatar, o.time rtime, p.lastedited, p.noob,
 				t.id tid, t.name tname, f.id fid, f.minpower fpowl, $new_check new
 		FROM posts p
 		
 		LEFT JOIN threads      t ON p.thread = t.id
 		LEFT JOIN forums       f ON t.forum  = f.id
-		LEFT JOIN posts_old    o ON o.time   = (SELECT MIN(o.time) FROM posts_old o WHERE o.pid = p.id)
-		LEFT JOIN threads_read n ON t.id	  = n.id
+		LEFT JOIN posts_old    o ON p.id     = o.pid
+		LEFT JOIN threads_read n ON t.id	 = n.id
 		
 		WHERE p.user = $id
+		GROUP BY p.id
 		ORDER BY p.id ".($ord ? "DESC" : "ASC")."
 		LIMIT ".($page*$loguser['ppp']).", ".$loguser['ppp']."
 	");

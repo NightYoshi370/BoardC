@@ -2,8 +2,11 @@
 	
 	require "lib/function.php";
 	
-	if (!$loguser['id'])	errorpage("You need to be logged in to edit your avatars.");
-	if ($isbanned) 			errorpage("Banned users aren't allowed to do edit avatars.");
+	
+	if (!$config['enable-image-uploads']) errorpage("File / image uploads have been disabled.");
+	if (!$loguser['id'])				 errorpage("You need to be logged in to edit your avatars.");
+	if ($isbanned) 						 errorpage("Banned users aren't allowed to do edit avatars.");
+	
 	
 	
 	$id = filter_int($_GET['id']);
@@ -248,7 +251,7 @@
 	
 	<table class='main w c'>
 		<tr>
-			<td class='head'>
+			<td class='head lh'>
 				User avatars for <?php echo makeuserlink(false, $user, true) ?>
 			</td>
 		</tr>

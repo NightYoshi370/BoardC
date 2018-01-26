@@ -6,8 +6,8 @@
 	*/
 	
 	$IMG = array(
-		'getlast' 		=> 'images/status/default/getlast.png',
-		'getnew'		=> 'images/status/default/getnew.png',
+		'getlast' 		=> '<img src="images/status/default/getlast.png">',
+		'getnew'		=> '<img src="images/status/default/getnew.png">',
 		'statusfolder' 	=> 'images/status/default', // for thread status indicators (new, hot, ...)
 		'numgfxfolder' 	=> 'images/numgfx/default', // font used for some numbers
 		'newpoll'		=> '<img src="images/text/default/newpoll.png">',
@@ -29,6 +29,45 @@
 		5 		=> "Sysadmin"
 	);
 	
+	// <posts required> => <color>, <text>
+	$syndrome_txt = array(
+		75 		=> ['83F3A3', "'Reinfors Syndrome' "],
+		100 	=> ['FFE323', "'Reinfors Syndrome' +"],
+		150 	=> ['FF5353', "'Reinfors Syndrome' ++"],
+		200 	=> ['CE53CE', "'Reinfors Syndrome' +++"],
+		250 	=> ['8E83EE', "'Reinfors Syndrome' ++++"],
+		300 	=> ['BBAAFF', "'Wooster Syndrome'!!"],
+		350 	=> ['FFB0FF', "'Wooster Syndrome' +!!"],
+		400 	=> ['FFB070', "'Wooster Syndrome' ++!!"],
+		450 	=> ['C8C0B8', "'Wooster Syndrome' +++!!"],
+		500 	=> ['A0A0A0', "'Wooster Syndrome' ++++!!"],
+		600 	=> ['C762F2', "'Anya Syndrome'!!!"],
+		800		=> ['62C7F2', "'Xkeeper Syndrome' +++++!!"],
+		1000	=> ['FFFFFF', "'Something higher than Xkeeper Syndrome' +++++!!"]
+	);
+	
+	// Acmlmboard compatiblity (to help in porting HTML)
+	if ($hacks['ab-layout']){
+		$header = $footer = "";
+		$tblstart = "<table class='main'>";
+		$tblend = "</table>";
+		$tccellh = "<td class='head'";
+		$tccell1 = "<td class='light'";
+		$tccell1l = "<td class='light'";
+		$tccell2 = "<td class='dim'";
+		$tccell2l = "<td class='dim'";
+		$radio = "<input type='radio' name";
+		$inpt = "<input type='text' name";
+		$inps = "<input type='submit' class='submit' name";
+		$smallfont = "<span class='fonts'>";
+		$txta = "<textarea wrap='virtual' name";
+		// No equivalent exists for these
+		$fonttag 		= "";
+		$fonthead 		= "";
+		$tinyfont 		= "";
+		function printtimedif($x){pagefooter();} // Close enough
+	}
+	
 	function pageheader($title, $show = true, $forum = 0, $mini = false){
 		global $sql, $config, $hacks, $fw_error, $loguser, $views, $miscdata, $meta, $threadbug_txt, $token, $scriptname, $userfields;
 		global $sysadmin, $isadmin, $isprivileged; // Powerlevels checks used for this function.
@@ -39,18 +78,6 @@
 			header('X-Robots-Tag: noindex, nofollow, noarchive', true);
 		}
 		
-		// Don't you hate stuff like this? I think I do!
-		if ($hacks['force-modern-web-design']){
-			$fw_error .= "
-			<noscript>
-				<div style='color: #fff; background: #000; text-align: center; font-size: 50px; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000;'>
-				YOURE USING NOSCRIPT FUCK YOU I'M A SHITHEAD WEB DESIGNER WHO ONLY CARES ABOUT WHERE IS MY MONEY  I N3EED IT!!!1!!1!
-				<br>
-				<div style='font-size: 12px'>(if you're seeing this page, the board administrator really is a fucking douchebag)</div>
-				</div>
-			</noscript>";
-		}
-		
 		if ($miscdata['private'] && !$loguser['id']){
 			// Special layout for pages in a private board while not logged in
 			$css 	= file_get_contents("css/night.css");
@@ -58,7 +85,7 @@
 			<!doctype html>
 			<html>
 				<head>
-					<title>{$config['board-name']} - $title</title>
+					<title>{$config['board-name']} -- $title</title>
 					<style type='text/css'>$css</style>
 					<link rel='icon' type='image/png' href='images/favicon.png'>
 					$meta_txt
@@ -82,7 +109,7 @@
 			$links .= "<a href='shoped.php'>Shop Editor</a> - ";		
 		}
 		if ($isadmin){
-			$links .= "<a href='admin.php'>Admin</a> - <a href='/phpmyadmin'>PMA</a> - <a href='register.php'>Rereggie</a> - ";
+			$links .= "<a href='admin.php'>Admin</a> - ";
 		}
 		
 		if (!$loguser['id']){
@@ -95,10 +122,13 @@
 		else{
 			$links .= "
 				<a href='javascript:document.logout.submit()'>Logout</a> - 
+				<a href='search.php'>Search</a> - 
 				<a href='editprofile.php'>Edit profile</a> - 
-				<a href='editavatars.php'>Edit avatars</a> - 
+				".($config['enable-image-uploads'] ? "<a href='editavatars.php'>Edit avatars</a> - " : "")."
+				<a href='event.php'>Edit events</a> - 
 				<a href='radar.php'>Post radar</a> - 
-				<a href='shop.php'>Item shop</a>
+				<a href='shop.php'>Item shop</a> - 
+				<a href='forum.php?fav'>Favorites</a>
 			";
 			
 			// TODO: While this moves the logout action to _POST, it also breaks the NoJS compatibility
@@ -118,21 +148,14 @@
 			<a href='index.php'>Main</a> - 
 			<a href='memberlist.php'>Memberlist</a> -
 			<a href='activeusers.php'>Active users</a> -
-			<a href='calendar.php'>Calendar</a> -
+			<a href='calendar.php'>Calendar</a> - 
+			<a href='irc.php'>IRC</a> - 
 			<a href='online.php'>Online users</a>
-		";
-		
-		if ($isadmin){
-			$links2 .= " - <a href='announcement.php'>Announcements</a>";
-		}
-		if ($config['enable-news']){
-			$links2 .= " - <a href='news.php'>News</a>";
-		}
-		
-		$links2 .= "<br>
+			<br>
 			<a href='ranks.php'>Ranks</a> - 
 			<a href='faq.php'>Rules/FAQ</a> - 
 			<a href='acs.php'>ACS</a> - 
+			<a href='stats.php'>Stats</a> - 
 			<a href='latestposts.php'>Latest posts</a> - 
 			<a href='hex.php' target='_blank'>Color Chart</a> - 
 			<a href='smilies.php' target='_blank'>Smilies</a>
@@ -156,18 +179,23 @@
 				font-family: Verdana, Geneva, sans-serif;
 				font-size: 13px;
 			}
-			table.main{
+			.main{
 				border-spacing: 0px;
 				border-top:	#000000 1px solid;
 				border-left: #000000 1px solid;
 			}
-			td.light,td.dim,td.head,td.dark{
+			.light,.dim,.head,.dark{
 				border-right:	#000000 1px solid;
 				border-bottom:	#000000 1px solid;
 			}
 			textarea, input, select{
 				border:	#000000 solid 1px;
-			}";
+			}
+			.c{text-align: center;}
+			.r{text-align: right;}
+			.w{width: 100%;}
+			.nobr{white-space: nowrap;}
+			";
 		}
 		else{
 			$css 	= file_get_contents($themepath.".css");
@@ -176,8 +204,7 @@
 				include($themepath.".php");
 		}
 
-		if ($show)
-			$title .= " - ".$config['board-name'];
+		if ($show) $title .= " -- ".$config['board-name'];
 		
 		// At this point, if only the basic layout is requested ($mini), stop here and put no doctype
 		if ($mini){
@@ -195,32 +222,6 @@
 		}
 		
 		$ctime 	= ctime();
-		
-		if ($hacks['replace-image-before-login'] && !$loguser['id'])
-			$config['board-title'] = "<h1>(?)</h1>";
-		
-		$minilog = "";
-		
-		if ($sysadmin && defined('FW_LOADED')){
-			
-			$badrequest 	= $sql->fetchq("SELECT (SELECT COUNT(id) FROM minilog) bad, ip, time, banflags FROM minilog ORDER BY time DESC");
-			$pendingusers	= $sql->fetchq("SELECT (SELECT COUNT(id) FROM pendingusers) pu, name, lastip, since FROM pendingusers ORDER BY since DESC");
-			
-			if ($badrequest)
-				$minilog .= "<br>
-					<a class='danger' style='font-size: 13px !important; font-weight:normal; !important' href='admin-showlogs.php'>
-					<b>{$badrequest['bad']}</b> suspicious request(s) logged, last at <b>".printdate($badrequest['time'])."</b> by <b>{$badrequest['ip']} ({$badrequest['banflags']})</b>
-					</a>
-				";
-			if ($pendingusers)
-				$minilog .= "<br>
-					<a class='danger' style='font-size: 13px !important; font-weight:normal; !important' href='admin-pendingusers.php'>
-					<b>{$pendingusers['pu']}</b> new pending user(s), last at <b>".printdate($pendingusers['since'])."</b> by <b>{$pendingusers['name']}</b> (IP: <b>{$pendingusers['lastip']}</b>)</b>
-					</a>
-				";
-			
-			unset($badrequest, $pendingusers);
-		}
 		
 		$newpmbox = $postradar = "";
 		if ($loguser['id']){
@@ -343,11 +344,10 @@
 			<body>
 			$threadbug_txt
 			$fw_error
-			".($hacks['test-ext'] ? audio_play("ext/sample.mp3") : "")."
 			$logoutform
 			<table class='main c w fonts'>
 				<tr>
-					<td colspan=3 class='light'><a href='{$config['board-url']}'>{$config['board-title']}</a>$minilog<br>$links</td>
+					<td colspan=3 class='light'><a href='{$config['board-url']}'>{$config['board-title']}</a><br>$links</td>
 				</tr>
 				<tr>
 					<td class='dim' style='width: 120px'>
@@ -364,12 +364,10 @@
 				<tr><td colspan=3 class='dim'>$postradar</td></tr>
 			</table>
 			$newpmbox";
-		
-		unset ($GLOBALS['fw_error']);
 	}
 	
 	function pagefooter(){
-		global $config, $sql, $hacks, $sysadmin, $fw;
+		global $config, $sql, $hacks, $sysadmin;
 		
 		// Get table rows worth of error info (if you have proper permissions)
 		$errorlog = error_printer(true, $sysadmin || $config['force-error-printer-on'], $GLOBALS['errors']);
@@ -461,10 +459,10 @@
 		
 		
 		$endtime = microtime(true) - $GLOBALS['startingtime'];
-		//Queries: ".$sql->queries." - PQueries: ".$sql->pqueries." | Total: ".($sql->queries+$sql->pqueries)."<br>		
+		//Queries: ".$sql->queries." - PQueries: ".$sql->pqueries." | Total: ".($sql->queries+$sql->pqueries)."<br>
 		
 		die("
-				<br>".$fw->generatelinkset()."
+				<br>
 				<center>
 					$errorprint
 					<br>
@@ -478,7 +476,7 @@
 						<table>
 							<tr>
 								<td>
-									<img src='images/poweredbyacmlm.png' title='not really but close enough I guess'>
+									<img src='images/poweredbyacmlm.png'>
 								</td>
 								<td class='fonts'>
 									BoardC - ".BOARDC_VERSION."<br>
@@ -607,8 +605,7 @@
 		<table class='main w'>
 			<tr><td class='head c fonts'>$title</td></tr>
 			<tr><td class='light c'>$message</td></tr>
-		</table>
-		<br>";
+		</table>";
 	}
 	
 	function setmessage($msg){
@@ -616,17 +613,6 @@
 		setcookie('msg', $msg);
 	}
 	
-	/*
-	function getmessage(){
-		$msg = filter_string($_COOKIE['msg']);
-		if ($msg){
-			setcookie('msg', NULL);
-			return messagebar("Message", input_filters($msg));
-		} else {
-			return '';
-		}
-	}
-	*/
 	function doannbox($id = 0){
 		
 		global $sql, $loguser, $userfields, $IMG;
@@ -691,7 +677,6 @@
 		if 		($l['posts'] == $x['posts']) $txt .= "tied with ";
 		else if ($l['posts'] <  $x['posts']) $txt .= $x['diff']." posts behind ";
 		else if ($l['posts'] >  $x['posts']) $txt .= $x['diff']." posts ahead of ";
-		else errorpage("Something is broken ".var_dump($x), false);
 		
 		// user link + post count
 		$txt .= makeuserlink($x['uid'], $x, true)." ({$x['posts']})";
@@ -699,14 +684,6 @@
 		return $txt;
 	}
 	
-	function donamecolor($powl, $sex, $usercolor = false){
-		if (!$usercolor){
-			if ($powl>4) $powl = 4;
-			//if ($powl<0) $powl = '-1';
-			return "class='nmcol$powl$sex'";
-		}
-		return "style='color:#$usercolor; !important'";
-	}
 	
 	/*
 		makeuserlink()
@@ -716,7 +693,7 @@
 		Generally the user id is either stored in $u['id'] or $u['uid'], depending on file.
 	*/
 	function makeuserlink($uid, $u = NULL, $showicon = false){
-		global $sql, $loguser, $userfields;
+		global $sql, $loguser, $userfields, $hacks;
 		static $udb = array();
 		
 		if (!$u){
@@ -728,8 +705,8 @@
 		}
 		
 		if ($uid) $u['id'] = $uid; // hack for compatibility, allows to remove useless code
-
-		$icon = isset($u['icon']) && $showicon ? "<img style='vertical-align: middle' src='{$u['icon']}'> " : "";
+		
+		$icon = $showicon && is_file("userpic/{$u['id']}/m") ? "<img style='vertical-align: middle' src='userpic/{$u['id']}/m'> " : "";
 		
 		if (!$u) return "<a class='danger'>(Invalid Userlink)</a>";
 		
@@ -743,17 +720,55 @@
 		}
 		// 0 male, 1 female, 2 unspec
 		
-		$linkcolor = donamecolor($u['powerlevel'], $u['sex'], $u['namecolor']);
 		
+		// Do name color
+		
+		/*
+			Rainbow colors:
+			- everybody gets one with the flag set
+			- a single user gets one with the rainbow flag...
+			- ... or on his birthday
+		*/
+		if (
+			$hacks['username-rainbow'] || $u['rainbow'] ||
+			(date('d') == date('d', $u['birthday']) && date('m') == date('m', $u['birthday']))
+		){
+			static $offset = 0;
+			$time = date('s') + $offset;
+			$r = intval(Sin(0.25 * $time + 0) * 63 + 192);
+			$g = intval(Sin(0.25 * $time + 2) * 63 + 192);
+			$b = intval(Sin(0.25 * $time + 4) * 63 + 192);
+			$linkcolor = "class='ulink' style='color: rgb($r, $g, $b)'";
+			$offset++;
+		} else if ($u['namecolor']){
+			$linkcolor = "class='ulink' style='color: #{$u['namecolor']}'";
+		} else {
+			if ($u['powerlevel'] > 5) $u['powerlevel'] = 0;
+			if ($u['powerlevel'] > 4) $u['powerlevel'] = 4;
+			//if ($u['powerlevel'] < 0) $u['powerlevel'] = '-1';
+			$linkcolor = "class='ulink nmcol{$u['powerlevel']}{$u['sex']}'";
+		}
+		// text-shadow: -1px 0 #000, 0 1px #000, 1px 0 #000, 0 -1px #000;
 		return "<a id='u{$u['id']}' href='profile.php?id={$u['id']}' $linkcolor $title>$icon$name</a>";
 	}
+	function userlink_from_id($id){return makeuserlink((int) $id[1], NULL, true);}
+	function userlink_from_name($set){
+		$name = $set[1];
+		static $cache = array();
+		if (!isset($cache[$name])){
+			global $sql, $userfields;
+			$cache[$name] = $sql->fetchp("SELECT $userfields FROM users u WHERE u.name = ?", [$name]);
+		}
+		return makeuserlink(false, $cache[$name], true);
+	}
+	
 
+	
 	function onlineusers($forum = false, $thread = false){
 		global $sql, $userfields;
 		global $isadmin;
 		
 		$usercount = $guestcount = 0;
-		$bot = $proxy = $tor = 0;
 		$txt = array();
 		
 		if ($thread){
@@ -767,7 +782,7 @@
 		}
 		
 		$users = $sql->query("
-			SELECT DISTINCT h.ip, $userfields, u.icon
+			SELECT DISTINCT h.ip, $userfields
 			FROM hits h
 			LEFT JOIN users  u ON h.user  = u.id
 			WHERE h.time > ".(ctime()-300)." AND h.user != 0 $forumcheck
@@ -777,34 +792,12 @@
 			$txt[] = makeuserlink(false, $x, true);
 			$usercount++;
 		}
-		
-		// $userfields, 
-		if (defined('FW_LOADED')) {
-			$guests = $sql->query("
-				SELECT DISTINCT h.ip, i.bot, i.proxy, i.tor
-				FROM hits h
-				LEFT JOIN ipinfo i ON h.ip    = i.ip
-				WHERE h.time>".(ctime()-300)." AND h.user = 0 $forumcheck
-			");	
-			
-			while ($x = $sql->fetch($guests)){
-				$bot 	+= $x['bot'];
-				$proxy 	+= $x['proxy'];
-				$tor 	+= $x['tor'];
-				$guestcount++;
-			}
-			
-			$extra = $isadmin ? " ($bot bots | $proxy proxies | $tor tor users)" : "";
-			
-		} else {
-			$guestcount = $sql->resultq("
-				SELECT COUNT(DISTINCT h.ip)
-				FROM hits h
-				WHERE h.time>".(ctime()-300)." AND h.user = 0 $forumcheck
-			");
-			
-			$extra = "";
-		}
+
+		$guestcount = $sql->resultq("
+			SELECT COUNT(DISTINCT h.ip)
+			FROM hits h
+			WHERE h.time>".(ctime()-300)." AND h.user = 0 $forumcheck
+		");
 		
 
 
@@ -812,14 +805,14 @@
 
 		// Extra formatting shit
 		// Ispired by AB2.064 for a change
-		if ($thread)	 $where = "reading $fname";
-		else if ($forum) $where = "in $fname";
+		if ($thread)	 $where = "reading '<i>$fname</i>'";
+		else if ($forum) $where = "in '<i>$fname</i>'";
 		else			 $where = "online";
 		$p = ($usercount==1) ? "" : "s";
 		$k = ($guestcount==1) ? "" : "s";
 		$txt = $txt ? ": $txt" : "";
 		
-		return "$usercount user$p currently $where$txt | $guestcount guest$k$extra";
+		return "$usercount user$p currently $where$txt | $guestcount guest$k";
 		
 	}
 	
@@ -895,16 +888,23 @@
 		return "<select name='$selname'>$txt</select>";
 	}
 	
-	function datetofields(&$timestamp, $basename){
+	function datetofields(&$timestamp, $basename, $searchlayout = false){
 		
 		if ($timestamp) $val = explode("|", date("n|j|Y", $timestamp));
 		else 			$val = array("", "", "");
 		
+		// Horrible hack
+		if (!$searchlayout) {
 		return "
 			Month: 	<input name='{$basename}month' 	type='text' maxlength='2' size='2' value='$val[0]'>
 			Day: 	<input name='{$basename}day' 	type='text' maxlength='2' size='2' value='$val[1]'>
 			Year: 	<input name='{$basename}year' 	type='text' maxlength='4' size='4' value='$val[2]'>
 		";
+		} else {
+			return "
+				<input name='{$basename}month' type='text' maxlength='2' size='2' value='$val[0]'>-<input name='{$basename}day' type='text' maxlength='2' size='2' value='$val[1]'>-<input name='{$basename}year' 	type='text' maxlength='4' size='4' value='$val[2]'>
+			";
+		}
 	}
 	// Separated from the other as you don't always need this
 	function timetofields(&$timestamp, $basename){
@@ -977,7 +977,7 @@
 	function dothemelist($name, $all = false, $sel = 0){
 		global $sql;
 		
-		$themes = $sql->query("SELECT * FROM themes ".($all ? "" : "WHERE special = 0"));
+		$themes = $sql->query("SELECT * FROM themes ".($all ? "ORDER BY special ASC" : "WHERE special = 0"));
 		
 		$theme[$sel] = "selected";
 		
@@ -1083,80 +1083,72 @@
 	function adminlinkbar(){
 		global $sysadmin, $scriptname;
 		
-		$adminpages = array(
-			"admin.php"					=> ["Home", 0],
-			"admin-updatethemes.php"	=> ["Update Themes", 0],
-			"admin-threadfix.php" 		=> ["ThreadFix", 0],
-			"admin-threadfix2.php" 		=> ["ThreadFix 2", 0],
-			"admin-userfix.php" 		=> ["UserFix", 0],
-			"admin-editforums.php" 		=> ["Edit Forums", 0],
-			"admin-editmods.php" 		=> ["Local Moderators", 0],
-			"admin-pendingusers.php"	=> ["Pending Users", 1],
-			"admin-ipsearch.php" 		=> ["IP Search", 0],
-			"admin-ipbans.php" 			=> ["IP Bans", 0],
-			"admin-showlogs.php" 		=> ["Board Logs", 0],			
-			"admin-quickdel.php" 		=> ["The (Ban) Button&trade;", 0],
-			"admin-deluser.php" 		=> ["Delete User", 2],
+		$adminstuff = array(
+			
+			array(
+				'admin.php'					=> [0,'Administration Home Page'],
+			),
+			array(
+				'announcement.php'			=> [0,'Announcements'],
+				'admin-editforums.php' 		=> [0,'Edit Forums'],
+				'admin-editmods.php' 		=> [0,'Local Moderators'],
+			),
+			array(
+				'admin-updatethemes.php'	=> [0,'Update Themes'],
+				'admin-threadfix.php' 		=> [0,'ThreadFix'],
+				'admin-threadfix2.php' 		=> [0,'ThreadFix 2'],
+				'admin-userfix.php' 		=> [0,'UserFix'],
+			),
+			array(
+				'admin-ipsearch.php' 		=> [0,'IP Search'],
+				'admin-ipbans.php' 			=> [0,'IP Bans'],
+				'admin-showlogs.php' 		=> [0,'XSS Attempts'],		
+				'admin-quickdel.php' 		=> [0,'The (Ban) Button&trade;'],
+				'admin-deluser.php' 		=> [2,'Delete User'],
+			),
 			
 		);
 		
 		
 		$txt 	= "";
-		$i 		= 5;
+		$last 	= count($adminstuff) - 1;
 		
-		foreach ($adminpages as $link => $set){
-			if ($i == 5){
-				$i = 0;
-				$txt .= "</tr><tr>";
+		foreach ($adminstuff as $i => $adminpages){
+			
+			//$colspan = 6 / count($adminpages);
+			$w = (1 / count($adminpages) * 100);
+			$b = ($last == $i ? "" : "border-bottom: none");
+			
+			$txt .= "<table class='main w c' style='$b'><tr>";
+			
+			foreach ($adminpages as $link => $set){
+				
+				if ($set[0] == 2 && !$sysadmin) continue;
+				
+				$title = $set[1];
+				
+				if ($link == $scriptname){
+					$txt .= "<td class='dark' style='width: $w%;$b'><a class='notice' href='$link'>$title</a>";
+				} else {
+					$txt .= "<td class='light' style='width: $w%;$b'><a href='$link'>$title</a>";
+				}
 			}
 			
-			switch ($set[1]){
-				case 1:
-					if (!defined('FW_LOADED')) continue;
-					break;
-				case 2:
-					if (!$sysadmin) continue;
-					break;
-			}
+			$txt .= "</tr></table>";
 			
-			$title = $set[0];
-			
-			if ($link == $scriptname){
-				$txt .= "<td class='dark' style='width: 20%'><a class='notice' href='$link'>$title</a>";
-			} else {
-				$txt .= "<td class='light' style='width: 20% '><a href='$link'>$title</a>";
-			}
-			$i++;
 		}
-		
-		for ($i; $i<5; $i++)
-			$txt .= "<td class='dim'>&nbsp;</td>";
 		
 		return "
 		<br>
-		<table class='main w c' style=''>
+		<table class='main w c' style='border-bottom: none'>
 			<tr>
-				<td class='head' colspan='5'>
-					Administration bells and whistles
+				<td class='head w' style='border-bottom: none'>
+					Admin Functions
 				</td>
 			</tr>
-			$txt
 		</table>
+		$txt
 		<br>";
 	}
 	
-	function audio_play($path, $message = "Error.", $volume = 100){
-		if (!file_exists($path))
-			return "<small>An mp3 track was supposed to play here, but some doofus linked to a nonexisting file</small>";
-		
-		else return "
-		<object type='application/x-shockwave-flash' data='ext/audioPlayer.swf' id='audioplayer'>
-			<param name='movie' value='ext/audioPlayer.swf'>
-			<param name='FlashVars' value='playerID=audioplayer&amp;autostart=yes&amp;initialvolume=$volume&amp;soundFile=$path'>
-			<param name='quality' value='high'>
-			<param name='menu' value='false'>
-			<param name='wmode' value='transparent'>
-			$message
-		</object>";
-	}
 ?>

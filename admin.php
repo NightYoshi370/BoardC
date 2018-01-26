@@ -7,8 +7,8 @@
 	if (isset($_POST['submit'])){
 		checktoken();
 		
-		if (!$_POST['theme']) 	$theme = NULL;
-		else 					$theme = filter_int($_POST['theme']);
+		$theme = filter_int($_POST['theme']);
+		if (!$theme) $theme = NULL;
 		
 		$sql->start();
 		$update = $sql->prepare("UPDATE misc SET disable = ?, views = ?, theme = ?, noposts = ?, regmode = ?, regkey = ?, threshold = ?, private = ?");
@@ -30,9 +30,7 @@
 		redirect("?");
 	}
 	
-	$opt 	= $sql->fetchq("SELECT * FROM misc");
-	
-	$reg_sel[$opt['regmode']] = 'selected';
+	$reg_sel[$miscdata['regmode']] = 'selected';
 	
 	
 	pageheader("Admin's Toolbox");
@@ -55,7 +53,7 @@
 				<small>Does exactly what you'd think.<br>Only admins will be able to use this board.</small>
 			</td>
 			<td class='dim'>
-				<input type='checkbox' name='disable' value=1 ".($opt['disable'] ? "checked" : "").">&nbsp;Disable Board
+				<input type='checkbox' name='disable' value=1 ".($miscdata['disable'] ? "checked" : "").">&nbsp;Disable Board
 			</td>
 		</tr>
 		<tr>
@@ -64,7 +62,7 @@
 				<small>I have no idea why is this here.</small>
 			</td>
 			<td class='dim'>
-				<input style='width: 150px;' type='text' name='views' value='".$opt['views']."'>
+				<input style='width: 150px;' type='text' name='views' value='$views'>
 			</td>
 		</tr>
 		<tr>
@@ -73,7 +71,7 @@
 				<small>Every user will be forced to use this theme, regardless of user or forum setting.</small>
 			</td>
 			<td class='dim'>
-				".dothemelist("theme", true, filter_int($opt['theme']))."
+				".dothemelist("theme", true, filter_int($miscdata['theme']))."
 			</td>
 		</tr>
 		<tr>
@@ -82,7 +80,7 @@
 				<small>Prevents the creation of new replies or threads (or polls).</small>
 			</td>
 			<td class='dim'>
-				<input type='checkbox' name='noposts' value=1 ".($opt['noposts'] ? "checked" : "").">&nbsp;Disable posting
+				<input type='checkbox' name='noposts' value=1 ".($miscdata['noposts'] ? "checked" : "").">&nbsp;Disable posting
 			</td>
 		</tr>
 		<tr>
@@ -93,7 +91,7 @@
 				</small>
 			</td>
 			<td class='dim'>
-				<input style='width: 50px;' type='text' name='threshold' value=\"".$opt['threshold']."\">
+				<input style='width: 50px;' type='text' name='threshold' value=\"".$miscdata['threshold']."\">
 			</td>
 		</tr>
 		<tr>
@@ -119,7 +117,7 @@
 				</small>
 			</td>
 			<td class='dim'>
-				<input style='width: 250px;' type='text' name='regkey' value=\"".$opt['regkey']."\">
+				<input style='width: 250px;' type='text' name='regkey' value=\"".$miscdata['regkey']."\">
 			</td>
 		</tr>
 		<tr>
@@ -131,7 +129,7 @@
 				</small>
 			</td>
 			<td class='dim'>
-				<input type='checkbox' name='private' value=1 ".($opt['private'] ? "checked" : "").">&nbsp;Set the board private
+				<input type='checkbox' name='private' value=1 ".($miscdata['private'] ? "checked" : "").">&nbsp;Set the board private
 			</td>
 		</tr>
 		

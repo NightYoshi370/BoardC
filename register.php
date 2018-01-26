@@ -127,8 +127,8 @@
 		if ($pass != filter_string($_POST['pass2']))		errorpage("The password and the retype don't match.");
 		if (strlen($user)>32)								errorpage("If you want to know, the 'name' field is varchar(32). Name too long.");
 		
-		$check = preg_replace('/[^\da-z ]/i', '', $user);
-		if ($check !== $user)								errorpage("Your username contains non-alphanumeric characters outside of spaces.");
+		$check = preg_replace('/[^\da-z _\/-]/i', '', $user);
+		if ($check !== $user)								errorpage("Your username contains invalid characters.");
 		if (!$isadmin && strlen($pass)<8)					errorpage("The password should be at least 8 characters long.");
 		
 		// 'password' is 8 characters
@@ -143,18 +143,7 @@
 		
 		$double = $sql->resultp("SELECT name FROM users WHERE name = ?", array($user));
 		if ($double)	errorpage("The username already exists. Please choose a different one.");
-		if ($bot)		errorpage("What are you doing?");
-		if ($tor){
-			$sql->query("INSERT INTO tor (ip, time) VALUES ('".$_SERVER['REMOTE_ADDR']."', ".ctime().")");
-			errorpage("You seem to be using Tor.<br>For added security, Tor users are blocked from registering/logging in.");
-		}
-		
-		if ($proxy && !$isadmin){
-			ipban("Proxy", "Auto IP Banned asshole using a proxy to register.");
-			setcookie('id', $fw->cookiebanid, 2147483647);
-			errorpage("You have been registered.<br>Click <a href='login.php'>here</a> to log in.");
-		}
-		
+
 		/*
 		this code is down here to prevent a loophole caused by sharing the regkey counter and failed logins in the same table
 		(if you know the regkey and register again with the correct one, you would be blocked but the failed_logins counter would reset)
@@ -184,79 +173,32 @@
 				errorpage("Wrong registration key.");
 			}
 			else if (!$rereggie) $sql->query("DELETE from failed_logins WHERE ip = '".$_SERVER['REMOTE_ADDR']."'"); // prevent a loophole
-			//else errorpage("No, don't think this will delete the failed_logins counter.");
 		}
 		
 		
+		$sql->start();
+		$newuser 	= $sql->prepare("INSERT INTO users (name, password, lastip, since) VALUES (?,?,?,?)");
+		$c[] 		= $sql->execute($newuser, [$user, password_hash($pass, PASSWORD_DEFAULT), $_SERVER['REMOTE_ADDR'], ctime()]);
 		
-		if (!filter_bool($meta['noapicheck']) && $fw->apicheck($_SERVER['REMOTE_ADDR'], $user)){
+		
+		if ($sql->finish($c)){
+			$sql->query("INSERT INTO users_rpg () VALUES ()");
+			$id = $sql->resultq("SELECT LAST_INSERT_ID()");
 			
-			// Preserve _POST
-			$txt = "";
-			foreach($_POST as $key => $val){
-				$txt .= "<input type='hidden' name='$key' value=\"".htmlspecialchars($val)."\">";
-			}
+			// Update unread thread/announcement table
+			$sql->query("ALTER TABLE threads_read       ADD COLUMN user$id int(32) NOT NULL DEFAULT '0'");
+			$sql->query("ALTER TABLE announcements_read ADD COLUMN user$id int(32) NOT NULL DEFAULT '0'");
 			
-			?>
+			$newtime = ctime();
+			$sql->query("UPDATE threads_read       SET user$id = '$newtime'");
+			$sql->query("UPDATE announcements_read SET user$id = '$newtime'");
 			
-			<form method='POST' action='register.php'>
-			<?php echo $txt ?>
-			
-			<table class='main w'>
-			
-				<tr><td class='head c' colspan=2>Register</td></tr>
-				
-				<tr>
-					<td class='light' style='width: 400px'>
-						email address:<br>
-						<small>
-							To complete registration, enter an email address for confirmation.<br>
-							<b>WARNING: IF YOU USE A THROWAWAY EMAIL SERVICE, YOU'LL BE IP BANNED!</b>
-						</small>
-					</td>
-					<td class='dim'>
-						<input type='text' style='width:330px' name='email' maxlength=64>
-					</td>
-				</tr>
-				
-				<tr>
-					<td class='dim' colspan=2>
-						<input type='submit' name='action' value='Finish'>
-					</td>
-				</tr>
-			</table>
-			
-			<?php
-			
-		} else {
-				
-			/*$result = userregister($name, password_hash($pass, PASSWORD_DEFAULT), $_SERVER['REMOTE_ADDR']);
-			
-			if ($result) 	errorpage("You have been registered.<br>Click <a href='login.php'>here</a> to log in.");
-			else 			errorpage("An unknown error occurred during registration.");*/
-			// Nothing suspicious!
-			$sql->start();
-			$newuser 	= $sql->prepare("INSERT INTO users (name, password, lastip, since) VALUES (?,?,?,?)");
-			$c[] 		= $sql->execute($newuser, [$user, password_hash($pass, PASSWORD_DEFAULT), $_SERVER['REMOTE_ADDR'], ctime()]);
-			
-			if ($sql->finish($c)){
-				$sql->query("INSERT INTO users_rpg () VALUES ()");
-				$id = $sql->resultq("SELECT LAST_INSERT_ID()");
-				
-				// Update unread thread/announcement table
-				$sql->query("ALTER TABLE threads_read       ADD COLUMN user$id int(32) NOT NULL DEFAULT '0'");
-				$sql->query("ALTER TABLE announcements_read ADD COLUMN user$id int(32) NOT NULL DEFAULT '0'");
-				
-				$newtime = ctime();
-				$sql->query("UPDATE threads_read       SET user$id = '$newtime'");
-				$sql->query("UPDATE announcements_read SET user$id = '$newtime'");
-				
-				mkdir("userpic/$id");
-				trigger_error("New user: $user ({$config['board-url']}profile.php?id=$id) IP: {$_SERVER['REMOTE_ADDR']}", E_USER_NOTICE);
-				errorpage("You have been registered.<br>Click <a href='login.php'>here</a> to log in.");
-			}
-			else errorpage("An unknown error occurred during registration.");
+			mkdir("userpic/$id");
+			irc_reporter("New user: $user ({$config['board-url']}profile.php?id=$id) IP: {$_SERVER['REMOTE_ADDR']}", 0);
+			errorpage("You have been registered.<br>Click <a href='login.php'>here</a> to log in.");
 		}
+		else errorpage("An unknown error occurred during registration.");
+		
 		
 	}
 	

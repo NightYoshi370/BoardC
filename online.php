@@ -2,7 +2,6 @@
 	
 	require "lib/function.php";
 	
-	//print urlformat($_SERVER['QUERY_STRING']."&auth=fdsfdsjdsfjfsjdvjvs&test=1");
 	$time 	= filter_int($_GET['time']);
 	$ip 	= filter_string($_POST['ip']);
 	
@@ -24,27 +23,18 @@
 	}
 	
 	pageheader("Online users");
-	
-	if (defined('FW_LOADED')){
-		$inum  = "x.";
-		$ijoin = "LEFT JOIN ipinfo x ON h.ip   = x.ip";
-	} else {
-		$inum  = "0 ";
-		$ijoin = "";
-	}
+
 	
 	$online = $sql->query("
 		SELECT 	h.ip, h.time, h.page, h.useragent, i.id ipbanned,
-				$userfields, u.posts, u.lastpost,
-				{$inum}bot, {$inum}proxy, {$inum}tor
+				$userfields, u.posts, u.lastpost
 		FROM hits h
 		
 		LEFT JOIN users  u ON h.user = u.id
 		LEFT JOIN ipbans i ON h.ip   = i.ip
-		$ijoin
 		
 		WHERE h.time > ".(ctime()-$time)."
-		".($ip && $isadmin ? "AND h.ip = '$ip'" : "")."
+		".($ip && $isadmin ? "AND h.ip = '".addslashes($ip)."'" : "")."
 
 		ORDER BY ".(isset($_GET['ipsort']) && $isadmin ? "h.ip" : "h.time DESC")."
 	");
@@ -52,12 +42,6 @@
 	$txt 	= array("", "");
 	$i 		= array(0, 0);
 	
-	// Text used to show flags
-	$ipinfo_txt = array(
-		["<span class='disabled'>B</span>","<span class='danger'>B</span>"], // Bot
-		["<span class='disabled'>P</span>","<span class='danger'>P</span>"], // Proxy
-		["<span class='disabled'>T</span>","<span class='danger'>T</span>"], // Tor
-	);
 	
 	/*
 		Page format
@@ -89,15 +73,7 @@
 				<td class='light c'>".($user['lastpost'] ? printdate($user['lastpost']) : "None")."</td>
 				<td class='dim'><a href='$page' rel='nofollow'>".htmlspecialchars($page)."</a></td>
 				<td class='dim c'>{$user['posts']}</td>
-				".($isadmin ? "
-				<td class='light c'>
-					".ipformat($user)."
-				</td>
-				<td class='light c'>
-					".$ipinfo_txt[0][$user['bot']].$ipinfo_txt[1][$user['proxy']].$ipinfo_txt[2][$user['tor']]."
-				</td>
-				"
-				: "")."
+				".($isadmin ? "<td class='light c'>".ipformat($user)."</td>" : "")."
 			</tr>";
 		}
 		else{ // guest
@@ -109,14 +85,7 @@
 				<td class='dim fonts c'>".htmlspecialchars(prepare_string($user['useragent']))."</td>
 				<td class='light c'>".printdate($user['time'])."</td>
 				<td class='dim'><a href='$page' rel='nofollow'>".htmlspecialchars($page)."</a></td>
-				".($isadmin ? "
-				<td class='light c'>
-					".ipformat($user)."
-				</td>
-				<td class='light c'>
-					".$ipinfo_txt[0][$user['bot']].$ipinfo_txt[1][$user['proxy']].$ipinfo_txt[2][$user['tor']]."
-				</td>				
-				" : "")."
+				".($isadmin ? "<td class='light c'>".ipformat($user)."</td>" : "")."
 			</tr>";
 		}
 	}
@@ -165,7 +134,7 @@
 			<td class='head c' style='width: 180px'>Last post</td>
 			<td class='head c'>URL</td>
 			<td class='head c' style='width: 60px'>Posts</td>
-			<?php echo ($isadmin ? "<td class='head c' style='width: 230px'>IP</td><td class='head c' style='width: 45px'>Flags</td>" : "") ?>
+			<?php echo ($isadmin ? "<td class='head c' style='width: 230px'>IP</td>" : "") ?>
 		</tr>
 		<?php echo $txt[0] ?>	
 	</table>
@@ -177,7 +146,7 @@
 			<td class='head c' style='width: 300px'>User agent</td>
 			<td class='head c' style='width: 130px'>Last activity</td>
 			<td class='head c'>URL</td>
-			<?php echo ($isadmin ? "<td class='head c' style='width: 180px'>IP</td><td class='head c' style='width: 45px'>Flags</td>" : "") ?>
+			<?php echo ($isadmin ? "<td class='head c' style='width: 180px'>IP</td>" : "") ?>
 		</tr>
 		<?php echo $txt[1] ?>	
 	</table>
@@ -189,7 +158,7 @@
 	function urlformat($url){
 		// Hide the token
 		$url = prepare_string($url);
-		$url = preg_replace("'&auth=(.*?)(&|^)'si", "$2", $url); //'(;|^)$filter(;|$)'
+		$url = preg_replace("'&auth=(.*?)(&?)'si", "$2", $url); //'(;|^)$filter(;|$)'
 		$url = preg_replace("'\??&debug's", "", $url);
 		return $url;
 	}

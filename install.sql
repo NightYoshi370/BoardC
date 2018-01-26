@@ -10,8 +10,7 @@ CREATE TABLE `announcements` (
   `nolayout` tinyint(1) NOT NULL DEFAULT '0',
   `avatar` int(32) NOT NULL DEFAULT '0',
   `forum` int(32) NOT NULL DEFAULT '0',
-  `lastedited` int(32) NOT NULL DEFAULT '0',
-  `rev` int(5) NOT NULL DEFAULT '0'
+  `lastedited` int(32) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE `announcements_old` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
@@ -41,6 +40,13 @@ INSERT INTO `categories` (`id`, `name`, `minpower`, `ord`) VALUES
 (1, 'Main', 0, 2),
 (2, 'Special', 2, 1),
 (3, 'Game Over', 0, 99);
+CREATE TABLE `dailystats` (
+  `day` int(32) NOT NULL UNIQUE KEY,
+  `users` smallint(5) NOT NULL,
+  `posts` int(32) NOT NULL,
+  `threads` int(32) NOT NULL,
+  `views` int(32) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE `events` (
   `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user` int(32) NOT NULL,
@@ -52,6 +58,11 @@ CREATE TABLE `failed_logins` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `ip` varchar(32) NOT NULL,
   `attempt` tinyint(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE `favorites` (
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  `user` int(11) NOT NULL,
+  `thread` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE `forummods` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
@@ -118,17 +129,6 @@ CREATE TABLE `misc` (
   `private` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO `misc` () VALUES ();
-CREATE TABLE `news` (
-  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
-  `name` text NOT NULL,
-  `text` text NOT NULL,
-  `user` int(32) NOT NULL,
-  `time` int(32) NOT NULL,
-  `cat` text,
-  `hide` bit(1) NOT NULL DEFAULT b'0',
-  `lastedituser` int(32) NOT NULL DEFAULT '0',
-  `lastedittime` int(32) NOT NULL DEFAULT '0'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Used by the external "plugin" news.php';
 CREATE TABLE `pms` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` text NOT NULL,
@@ -169,7 +169,6 @@ CREATE TABLE `posts` (
   `time` int(32) NOT NULL,
   `thread` int(32) NOT NULL,
   `user` int(32) NOT NULL,
-  `rev` int(4) NOT NULL,
   `deleted` tinyint(1) NOT NULL DEFAULT '0',
   `nohtml` tinyint(1) NOT NULL DEFAULT '0',
   `nosmilies` tinyint(1) NOT NULL DEFAULT '0',
@@ -239,6 +238,16 @@ CREATE TABLE `ratings` (
   `userto` int(32) NOT NULL,
   `rating` tinyint(2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE `records` (
+  `maxpostsd` smallint(5) NOT NULL DEFAULT '0',
+  `maxpostsh` smallint(5) NOT NULL DEFAULT '0',
+  `maxusersonline` smallint(5) NOT NULL DEFAULT '0',
+  `maxusersonlinetime` int(32) NOT NULL DEFAULT '0',
+  `maxusersonline_txt` text DEFAULT NULL,
+  `maxpostsdtime` int(32) NOT NULL DEFAULT '0',
+  `maxpostshtime` int(32) NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO `records` () VALUES ();
 CREATE TABLE `rpg_classes` (
   `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(64) NOT NULL,
@@ -287,7 +296,8 @@ INSERT INTO `themes` (`id`, `name`, `file`, `special`) VALUES
 (1, 'Night (Jul)', 'night', 0),
 (2, 'Hydra''s Blue Thing (Alternate)', 'hbluealt', 0),
 (3, 'The Zen', 'spec-zen', 1),
-(4, 'Daily Cycle', 'dailycycle', 0);
+(4, 'Daily Cycle', 'dailycycle', 0),
+(5, 'Classic Remix', 'classic', 0);
 CREATE TABLE `threads` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -348,7 +358,6 @@ CREATE TABLE `users` (
   `theme` int(8) NOT NULL DEFAULT '1',
   `showhead` tinyint(1) NOT NULL DEFAULT '1',
   `signsep` int(3) NOT NULL DEFAULT '1',
-  `icon` text,
   `spent` int(32) NOT NULL DEFAULT '0',
   `gcoins` int(32) NOT NULL DEFAULT '0',
   `gspent` int(32) NOT NULL DEFAULT '0',
@@ -358,24 +367,33 @@ CREATE TABLE `users` (
   `title_status` int(1) NOT NULL DEFAULT '0',
   `rankset` int(4) NOT NULL DEFAULT '1',
   `publicemail` tinyint(1) NOT NULL DEFAULT '2',
-  `class` smallint(4) NOT NULL DEFAULT '0'
+  `class` smallint(4) NOT NULL DEFAULT '0',
+  `rainbow` tinyint(1) NOT NULL DEFAULT '0',
+  `startingday` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE `users_rpg` (
   `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
-  `eq1` int(32) NOT NULL DEFAULT '0',
-  `eq2` int(32) NOT NULL DEFAULT '0'
+  `eq1` int(32) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-INSERT INTO `users_rpg` (`id`, `eq1`, `eq2`) VALUES
-(1, 0, 0),
-(2, 0, 0);
+INSERT INTO `users_rpg` (`id`, `eq1`) VALUES
+(1, 0),
+(2, 0);
 CREATE TABLE `user_avatars` (
   `id` int(32) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user` int(32) NOT NULL,
   `file` int(16) NOT NULL,
   `title` varchar(32) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE `user_comments` (
+  `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  `user` INT(32) NOT NULL,
+  `from` INT(32) NOT NULL,
+  `time` INT(32) NOT NULL,
+  `text` TEXT NOT NULL
+) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE `forummods` ADD UNIQUE KEY `unimod` (`fid`,`uid`);
 ALTER TABLE `hits` ADD UNIQUE KEY `ip` (`ip`);
 ALTER TABLE `polls` ADD UNIQUE KEY `thread` (`thread`);
 ALTER TABLE `rpg_classes` ADD UNIQUE KEY `uniname` (`name`);
 ALTER TABLE `users` ADD UNIQUE KEY `name` (`name`);
+ALTER TABLE `favorites` ADD UNIQUE KEY `singlefav` (`user`, `thread`);

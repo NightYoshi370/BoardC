@@ -98,7 +98,8 @@
 		
 		$p 	= $u['posts'];
 		$d 	= (ctime() - $u['since']) / 86400;
-				
+		if ($d < 1) $d = 1;
+		
 		$m = array_fill(0, 9, 1);
 		$a = array_fill(0, 9, 0);
 		
@@ -114,7 +115,6 @@
 				/*
 					+ or - : add or remove directly
 					x or / : divide by 100 to make decimal numbers possible
-					TODO: NOTE THAT THE LATTER ISN'T IMPLEMENTED IN THE ITEM SHOP
 				*/
 				// Check first character to handle operation
 				switch ($oper){
@@ -187,7 +187,7 @@
 
 	function calcexp($posts, $days, $extra = 0){
 		if (!$days || !$posts) 			return $extra;
-		else if ($posts / $days > 0) 	return floor($posts * pow($posts * $days, 0.5)) + $extra;
+		else if ($posts / $days > 0)	return floor($posts * pow($posts * $days, 0.5)) + $extra;
 		else 							return 'NAN';
 	}
 

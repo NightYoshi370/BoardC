@@ -4,7 +4,6 @@
 	require "lib/function.php";
 	
 	if 		(!isset($_GET['act']))				errorpage("No action specified.");
-	else if ($isproxy)							errorpage("Fuck off.");
 	else if (!$loguser['id'])					errorpage("You need to be logged in to do that.");
 	else if ($isbanned)							errorpage("Banned users aren't allowed to do this.");
 	else if ($loguser['editing_locked'] == 2)	errorpage("You aren't allowed to post.");
@@ -171,7 +170,7 @@
 				</tr>
 				
 				<tr>
-					<td class='light' style='width: 806px; border-right: none'>
+					<td class='light' style='width: 806px'>
 						<textarea name='message' rows='21' cols='80' style='width: 100%; width: 800px; resize:both;' wrap='virtual'><?php
 							echo htmlspecialchars($msg)
 						?></textarea>
@@ -599,8 +598,8 @@
 				<td class='light c' style='width: 150px'>
 					<b>Post:</b>
 				</td>
-				<td class='light' style='border-right: none'>
-					<textarea name='message' rows='21' cols='80' style='width: 100%; width: 800px; resize:both;' wrap='virtual'><?php
+				<td class='light'>
+					<textarea name='message' rows='21' cols='80' style='width: 800px; resize:both;' wrap='virtual'><?php
 						echo htmlspecialchars($msg)
 					?></textarea>
 				</td>
@@ -647,15 +646,18 @@
 		
 		// Get everything needed to view the post
 		$post = $sql->fetchq("
-			SELECT 	p.id, p.text, p.time, p.rev, p.user, p.deleted, p.thread, p.nohtml,
+			SELECT 	p.id, p.text, p.time, COUNT(o.id) rev, p.user, p.deleted, p.thread, p.nohtml,
 					p.nosmilies, p.nolayout, p.avatar, o.time rtime, p.lastedited, p.noob,
 					u.lastip ip, u.name, u.displayname, u.title, u.namecolor, u.sex,
 					u.powerlevel, u.posts, u.lastpost, u.since, u.location, u.lastview,
-					u.rankset, u.class
+					u.rankset, u.class, u.rainbow, u.birthday
 			FROM posts p
+			
 			LEFT JOIN users u     ON p.user = u.id
-			LEFT JOIN posts_old o ON p.id = (SELECT MAX('o.id') FROM posts_old o WHERE o.pid = p.id)
+			LEFT JOIN posts_old o ON p.id   = o.pid
+			
 			WHERE p.id = $pid
+			GROUP BY p.id
 		");
 		
 		// Permission checks
@@ -679,6 +681,7 @@
 			
 			$sql->start();
 			// Xkeeper once said about backing up posts in a different table. this bit of code does that
+			// [0.32] Now with the bonus of being able to truncate safely old versions of the post without breaking everything else
 			$bak  = $sql->prepare("
 				INSERT INTO posts_old (pid, text, time, rev, nohtml, nosmilies, nolayout, avatar) VALUES 
 				(
@@ -699,7 +702,6 @@
 				UPDATE posts SET
 					text 		= ?,
 					time 		= ".ctime().",
-					rev			= rev + 1,
 					nohtml		= ".filter_int($_POST['nohtml']).",
 					nosmilies	= ".filter_int($_POST['nosmilies']).",
 					nolayout	= ".filter_int($_POST['nolayout']).",
@@ -711,7 +713,7 @@
 			
 			if ($sql->finish($c)){
 				setmessage("The post has been edited successfully!");
-				redirect("thread.php?pid=$pid");
+				redirect("thread.php?pid=$pid#$pid");
 			} else {
 				errorpage("Couldn't edit the post.");
 			}
@@ -798,12 +800,12 @@
 		<table class='main'>
 			<tr>
 				<td colspan=2 class='head c'>
-					New Reply
+					Edit post
 				</td>
 			</tr>
 			
 			<tr>
-				<td class='light' style='width: 806px; border-right: none'>
+				<td class='light' style='width: 806px'>
 					<textarea name='message' rows='21' cols='80' style='width: 100%; width: 800px; resize:both;' wrap='virtual'><?php
 						echo htmlspecialchars($msg)
 					?></textarea>

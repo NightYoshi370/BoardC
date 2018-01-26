@@ -23,6 +23,7 @@
 	else if ($_GET['pow'] == 'b') 	$powerdo = "AND powerlevel < 0";
 	else if ($_GET['pow'] == 'a') 	$powerdo = "AND powerlevel > 3";
 	else if ($_GET['pow'] == 's') 	$powerdo = "AND powerlevel > 1";
+	else if ($_GET['pow'] >  5  )   $powerdo = "AND powerlevel = 5";
 	else 							$powerdo = "AND powerlevel = ".((int) $_GET['pow']);
 	
 	
@@ -58,7 +59,7 @@
 		// Attempt to save memory by using a standard query rather than fetchall
 		// as the latter is only required when sorting by EXP
 		$users = $sql->query("
-			SELECT $userfields, u.icon, u.posts, u.since, u.lastip, r.bonus_exp
+			SELECT $userfields, u.posts, u.since, u.lastip, r.bonus_exp
 			FROM users u
 			LEFT JOIN rpg_classes r ON u.class = r.id
 			WHERE 1
@@ -69,7 +70,7 @@
 	} else {
 		// EXP Sorting
 		$users = $sql->fetchq("
-			SELECT $userfields, u.icon, u.posts, u.since, u.lastip, r.bonus_exp
+			SELECT $userfields, u.posts, u.since, u.lastip, r.bonus_exp
 			FROM users u
 			LEFT JOIN rpg_classes r ON u.class = r.id
 			WHERE 1
@@ -79,7 +80,9 @@
 		// First loop to calculate exp value
 		$cnt = count($users);
 		for($i = 0; $i < $cnt; $i++){
-			$users[$i]['exp'] = calcexp($users[$i]['posts'], (ctime()-$users[$i]['since']) / 86400, $users[$i]['bonus_exp']);
+			$days = (ctime()-$users[$i]['since']) / 86400;
+			if ($days < 1) $days = 1;
+			$users[$i]['exp'] = calcexp($users[$i]['posts'], $days, $users[$i]['bonus_exp']);
 		}
 		uasort($users, 'sortbyexp_'.($orddo ? 'ASC' : 'DESC'));
 	}
@@ -91,9 +94,11 @@
 	
 	foreach($users as $user){
 		
-		$icon = $user['icon'] ? "<img src='{$user['icon']}'>" : "";
+		$icon 	= is_file("userpic/{$user['id']}/m") ? "<img src='userpic/{$user['id']}/m' style='vertical-align: middle'> " : "";
 		
-		if (!isset($user['exp'])) $user['exp'] = calcexp($user['posts'], (ctime()-$user['since']) / 86400, $user['bonus_exp']);
+		$days = (ctime()-$user['since']) / 86400;
+		if ($days < 1) $days = 1;
+		if (!isset($user['exp'])) $user['exp'] = calcexp($user['posts'], $days, $user['bonus_exp']);
 
 		$txt .= "
 		<tr>

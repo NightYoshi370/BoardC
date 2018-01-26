@@ -14,7 +14,7 @@
 		
 		// If the operator isn't allowed, the value is blank or attempts to divide by 0, return +0
 		static $oper 	= array('+','-','x','/');
-		if (!in_array($x[0], $oper) || (strpos($x, '/0') !== false) return "+0";
+		if (!in_array($x[0], $oper) || (strpos($x, '/0') !== false)) return "+0";
 		
 		
 		$val = substr($x, 1);
@@ -118,6 +118,7 @@
 		
 	}
 	else if (isset($_POST['update'])){
+		checktoken();
 		
 		if ($id){
 			
@@ -533,7 +534,7 @@
 		global $sql, $isadmin;
 		
 		$txt 	= "";
-		$cnt	= $sql->resultq("SELECT COUNT(id) FROM categories");
+		$cnt	= $sql->resultq("SELECT COUNT(id) FROM shop_categories");
 		$width 	= floor(1 / $cnt * 100);
 		
 		foreach ($cats as $cat){

@@ -14,6 +14,10 @@
 	$forum 		= filter_int($_GET['forum']); // Forum for posts by forum mode
 	if (!$id) errorpage("No user specified.");
 	
+	if ($forum && !canviewforum($forum)){
+		errorpage("You can't view this forum!");
+	}
+	
 	
 	
 	// Defaults
@@ -69,7 +73,7 @@
 			$txt .= "
 			<tr>
 				<td class='dim'>
-					".($isadmin ? "<a href='listposts.php?id=$id&invalid' class='danger' style='background: #fff'><b>Invalid</b></a>" : "<i>(Restricted forum)</i>")."
+					".($isadmin ? "<a href='listposts.php?id=$id&invalid&time=0' class='danger' style='background: #fff'><b>Invalid</b></a>" : "<i>(Restricted forum)</i>")."
 				</td>
 				<td class='light'>
 					$invalid
